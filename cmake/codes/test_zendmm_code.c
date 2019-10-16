@@ -24,7 +24,7 @@ int main()
       i = i >> 1;
    }
 
-   fp = fopen(POLAR_CONFIGURE_TEMP_DIR"/conftest.zend", "w");
+   fp = fopen(POLAR_CONFIGURE_TEMP_DIR+"/conftest.zend", "w");
    fprintf(fp, "%d %d\n", ZEND_MM_ALIGNMENT, zeros);
    fclose(fp);
    exit(0);
