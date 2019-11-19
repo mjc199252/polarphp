@@ -1,0 +1,75 @@
+//// Automatically Generated From TokenKindTypeSerialization.h.gyb
+//// Do Not Edit Directly!
+// This source file is part of the polarphp.org open source project
+//
+// Copyright (c) 2017 - 2019 polarphp software foundation
+// Copyright (c) 2017 - 2019 zzu_softboy <zzu_softboy@163.com>
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://polarphp.org/LICENSE.txt for license information
+// See https://polarphp.org/CONTRIBUTORS.txt for the list of polarphp project authors
+//
+// Created by polarboy on 2019/11/13.
+
+#ifndef POLARPHP_SYNTAX_SERIALIZATION_TOKEN_KINDTYPE_SERIALIZATION_H
+#define POLARPHP_SYNTAX_SERIALIZATION_TOKEN_KINDTYPE_SERIALIZATION_H
+
+#include "nlohmann/json.hpp"
+#include "polarphp/syntax/internal/TokenEnumDefs.h"
+#include "polarphp/syntax/TokenKinds.h"
+#include "polarphp/parser/Token.h"
+
+namespace polar::syntax::internal {
+
+NLOHMANN_JSON_SERIALIZE_ENUM(TokenKindType, {
+   {T_UNKNOWN_MARK, nullptr},
+<?php 
+foreach ($TOKENS as $token) {
+   $tokenKind = $token->getKind();
+   if ($tokenKind != "T_UNKNOWN_MARK") {
+?>
+   {<?= $tokenKind ?>, "<?= $tokenKind ?>"},
+<?php
+   }
+}
+?>
+})
+
+} // polar::syntax::internal
+
+namespace polar::syntax {
+NLOHMANN_JSON_SERIALIZE_ENUM(TokenCategory, {
+   {TokenCategory::Unknown, nullptr},
+   {TokenCategory::Internal, "Internal"},
+   {TokenCategory::Keyword, "Keyword"},
+   {TokenCategory::DeclKeyword, "DeclKeyword"},
+   {TokenCategory::StmtKeyword, "StmtKeyword"},
+   {TokenCategory::ExprKeyword, "ExprKeyword"},
+   {TokenCategory::Punctuator, "Punctuator"},
+   {TokenCategory::Misc, "Misc"}
+})
+} // polar::syntax
+
+namespace polar::parser {
+
+using ValueType = Token::ValueType;
+using TokenFlagType = TokenFlags::FlagType;
+
+NLOHMANN_JSON_SERIALIZE_ENUM(ValueType, {
+   {ValueType::Invalid, nullptr},
+   {ValueType::Unknown, "Unknown"},
+   {ValueType::LongLong, "LongLong"},
+   {ValueType::String, "String"},
+   {ValueType::Double, "Double"}
+})
+
+NLOHMANN_JSON_SERIALIZE_ENUM(TokenFlagType, {
+   {TokenFlagType::NeedCorrectLNumberOverflow, "NeedCorrectLNumberOverflow"},
+   {TokenFlagType::AtStartOfLine, "AtStartOfLine"},
+   {TokenFlagType::EscapedIdentifier, "EscapedIdentifier"},
+   {TokenFlagType::InvalidLexValue, "InvalidLexValue"},
+})
+
+} // polar::parser
+
+#endif // POLARPHP_SYNTAX_SERIALIZATION_TOKEN_KINDTYPE_SERIALIZATION_H

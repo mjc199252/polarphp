@@ -16,7 +16,7 @@
 #include <string>
 
 #include "polarphp/syntax/internal/TokenEnumDefs.h"
-#include "polarphp/basic/adt/SmallVector.h"
+#include "llvm/ADT/SmallVector.h"
 
 /// forward declare class
 namespace polar::parser {
@@ -24,9 +24,9 @@ class Lexer;
 class Token;
 } // polar::parser
 
-namespace polar::basic {
+namespace llvm {
 class StringRef;
-} // polar::basic
+} // llvm
 
 namespace polar::ast {
 class DiagnosticEngine;
@@ -35,45 +35,41 @@ class DiagnosticEngine;
 namespace polar::parser::internal {
 
 using polar::syntax::internal::TokenKindType;
-using polar::basic::SmallVectorImpl;
-using polar::basic::StringRef;
 using polar::ast::DiagnosticEngine;
+using llvm::SmallVectorImpl;
+using llvm::StringRef;
 
-bool encode_to_utf8(unsigned c,
-                    SmallVectorImpl<char> &result);
 unsigned count_leading_ones(unsigned char c);
 bool is_start_of_utf8_character(unsigned char c);
 void strip_underscores(unsigned char *str, int &length);
-size_t count_str_newline(const unsigned char *str, size_t length);
-void handle_newlines(Lexer &lexer, const unsigned char *str, size_t length);
-void handle_newline(Lexer &lexer, unsigned char c);
-TokenKindType token_kind_map(unsigned char c);
-size_t convert_single_quote_str_escape_sequences(char *iter, char *endMark, Lexer &lexer);
-bool convert_double_quote_str_escape_sequences(std::string &filteredStr, char quoteType, const char *iter,
-                                               const char *endMark, Lexer &lexer);
+TokenKindType get_token_kind_by_char(unsigned char c);
+long convert_single_quote_str_escape_sequences(std::string::iterator iter, std::string::iterator endMark, Lexer &lexer);
+bool convert_double_quote_str_escape_sequences(std::string &filteredStr, char quoteType, std::string::iterator iter,
+                                               std::string::iterator endMark, Lexer &lexer);
 void diagnose_embedded_null(DiagnosticEngine *diags, const unsigned char *ptr);
-bool advance_to_end_of_line(const unsigned char *&m_yyCursor, const unsigned char *bufferEnd,
+bool advance_to_end_of_line(const unsigned char *&yyCursor, const unsigned char *bufferEnd,
                             const unsigned char *codeCompletionPtr = nullptr,
                             DiagnosticEngine *diags = nullptr);
+bool encode_to_utf8(unsigned c, SmallVectorImpl<char> &result);
+/// Given a pointer to the starting byte of a UTF8 character, validate it and
+/// advance the lexer past it.  This returns the encoded character or ~0U if
+/// the encoding is invalid.
+///
+uint32_t validate_utf8_character_and_advance(const unsigned char *&ptr, const unsigned char *end);
+bool advance_if_valid_start_of_identifier(const unsigned char *&ptr, const unsigned char *end);
+bool advance_if_valid_continuation_of_identifier(const unsigned char *&ptr, const unsigned char *end);
+bool advance_if_valid_start_of_operator(const unsigned char *&ptr, const unsigned char *end);
+bool advance_if_valid_continuation_of_operator(const unsigned char *&ptr, const unsigned char *end);
 bool skip_to_end_of_slash_star_comment(const unsigned char *&m_yyCursor,
                                        const unsigned char *bufferEnd,
                                        const unsigned char *codeCompletionPtr = nullptr,
                                        DiagnosticEngine *diags = nullptr);
-bool is_valid_identifier_continuation_code_point(uint32_t c);
-bool is_valid_identifier_start_code_point(uint32_t c);
-bool advance_if(const unsigned char *&ptr, const unsigned char *end,
-                bool (*predicate)(uint32_t));
-bool advance_if_valid_start_of_identifier(const unsigned char *&ptr,
-                                          const unsigned char *end);
-bool advance_if_valid_continuation_of_identifier(const unsigned char *&ptr,
-                                                 const unsigned char *end);
-bool advance_if_valid_start_of_operator(const unsigned char *&ptr,
-                                        const unsigned char *end);
-bool advance_if_valid_continuation_of_operator(const unsigned char *&ptr,
-                                               const unsigned char *end);
+
 const char *next_newline(const char *str, const char *end, size_t &newlineLen);
 bool strip_multiline_string_indentation(Lexer &lexer, std::string &str, int indentation, bool usingSpaces,
                                         bool newlineAtStart, bool newlineAtEnd);
+void strip_underscores(std::string &str, size_t &len);
+
 } // polar::parser::internal
 
 #endif // POLARPHP_PARSER_INTERNAL_YY_LEXER_EXTRAS_H

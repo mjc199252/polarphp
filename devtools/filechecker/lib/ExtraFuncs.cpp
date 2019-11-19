@@ -10,18 +10,19 @@
 // Created by polarboy on 2018/10/25.
 
 #include "ExtraFuncs.h"
-#include "polarphp/utils/RawOutStream.h"
-#include "polarphp/utils/ErrorHandling.h"
-#include "polarphp/utils/WithColor.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/WithColor.h"
 #include "CLI/CLI.hpp"
 #include <cassert>
 
 namespace polar {
 namespace filechecker {
 
-using polar::utils::WithColor;
-using polar::utils::RawStringOutStream;
-using namespace polar::filechecker::check;
+using llvm::WithColor;
+using llvm::raw_string_ostream;
+using llvm::raw_ostream;
+using llvm::Check::FileCheckKind;
 
 CLI::App *sg_commandParser = nullptr;
 std::vector<std::string> sg_checkPrefixes{};
@@ -46,7 +47,7 @@ std::string dump_input_checker(const std::string &value)
 {
    auto iter = sg_allowDumpOpts.find(value);
    if (iter == sg_allowDumpOpts.end()) {
-      return std::string("dump input option value invalid");
+      return std::string("dump input option value: '") + value + "' is invalid";
    }
    return std::string();
 }
@@ -62,91 +63,91 @@ DumpInputValue get_dump_input_type(const std::string &opt)
 
 void dump_command_line(int argc, char **argv)
 {
-   polar::utils::error_stream() << "FileCheck command line: ";
+   llvm::errs() << "filechecker command line: ";
    for (int i = 0; i < argc; i++) {
-      polar::utils::error_stream() << " " << argv[i];
+      llvm::errs() << " " << argv[i];
    }
-   polar::utils::error_stream() << "\n";
+   llvm::errs() << "\n";
 }
 
 MarkerStyle get_marker(FileCheckDiag::MatchType matchTy) {
    switch (matchTy) {
    case FileCheckDiag::MatchFoundAndExpected:
-      return MarkerStyle('^', RawOutStream::Colors::GREEN);
+      return MarkerStyle('^', raw_ostream::Colors::GREEN);
    case FileCheckDiag::MatchFoundButExcluded:
-      return MarkerStyle('!', RawOutStream::Colors::RED, "error: no match expected");
+      return MarkerStyle('!', raw_ostream::Colors::RED, "error: no match expected");
    case FileCheckDiag::MatchFoundButWrongLine:
-      return MarkerStyle('!', RawOutStream::Colors::RED, "error: match on wrong line");
+      return MarkerStyle('!', raw_ostream::Colors::RED, "error: match on wrong line");
    case FileCheckDiag::MatchFoundButDiscarded:
-      return MarkerStyle('!', RawOutStream::Colors::CYAN,
+      return MarkerStyle('!', raw_ostream::Colors::CYAN,
                          "discard: overlaps earlier match");
    case FileCheckDiag::MatchNoneAndExcluded:
-      return MarkerStyle('X', RawOutStream::Colors::GREEN);
+      return MarkerStyle('X', raw_ostream::Colors::GREEN);
    case FileCheckDiag::MatchNoneButExpected:
-      return MarkerStyle('X', RawOutStream::Colors::RED, "error: no match found");
+      return MarkerStyle('X', raw_ostream::Colors::RED, "error: no match found");
    case FileCheckDiag::MatchFuzzy:
-      return MarkerStyle('?', RawOutStream::Colors::MAGENTA, "poutStreamsible intended match");
+      return MarkerStyle('?', raw_ostream::Colors::MAGENTA, "possible intended match");
    }
-   polar::utils::unreachable_internal("unexpected match type");
+   llvm_unreachable("unexpected match type");
 }
 
-void dump_input_annotation_help(RawOutStream &outStream)
+void dump_input_annotation_help(raw_ostream &outStream)
 {
-   outStream << "The following description was requested by -dump-input=help to\n"
-             << "explain the input annotations printed by -dump-input=always and\n"
-             << "-dump-input=fail:\n\n";
+   outStream << "The following description was requested by --dump-input=help to\n"
+             << "explain the input annotations printed by --dump-input=always and\n"
+             << "--dump-input=fail:\n\n";
 
    // Labels for input lines.
    outStream << "  - ";
-   WithColor(outStream, RawOutStream::Colors::SAVEDCOLOR, true) << "L:";
+   WithColor(outStream, raw_ostream::Colors::SAVEDCOLOR, true) << "L:";
    outStream << "     labels line number L of the input file\n";
 
    // Labels for annotation lines.
    outStream << "  - ";
-   WithColor(outStream, RawOutStream::Colors::SAVEDCOLOR, true) << "T:L";
+   WithColor(outStream, raw_ostream::Colors::SAVEDCOLOR, true) << "T:L";
    outStream << "    labels the only match result for a pattern of type T from "
              << "line L of\n"
              << "           the check file\n";
    outStream << "  - ";
-   WithColor(outStream, RawOutStream::Colors::SAVEDCOLOR, true) << "T:L'N";
+   WithColor(outStream, raw_ostream::Colors::SAVEDCOLOR, true) << "T:L'N";
    outStream << "  labels the Nth match result for a pattern of type T from line "
              << "L of\n"
              << "           the check file\n";
 
    // Markers on annotation lines.
    outStream << "  - ";
-   WithColor(outStream, RawOutStream::Colors::SAVEDCOLOR, true) << "^~~";
+   WithColor(outStream, raw_ostream::Colors::SAVEDCOLOR, true) << "^~~";
    outStream << "    marks good match (reported if -v)\n"
              << "  - ";
-   WithColor(outStream, RawOutStream::Colors::SAVEDCOLOR, true) << "!~~";
+   WithColor(outStream, raw_ostream::Colors::SAVEDCOLOR, true) << "!~~";
    outStream << "    marks bad match, such as:\n"
              << "           - CHECK-NEXT on same line as previous match (error)\n"
              << "           - CHECK-NOT found (error)\n"
              << "           - CHECK-DAG overlapping match (discarded, reported if "
              << "-vv)\n"
              << "  - ";
-   WithColor(outStream, RawOutStream::Colors::SAVEDCOLOR, true) << "X~~";
+   WithColor(outStream, raw_ostream::Colors::SAVEDCOLOR, true) << "X~~";
    outStream << "    marks search range when no match is found, such as:\n"
              << "           - CHECK-NEXT not found (error)\n"
              << "           - CHECK-NOT not found (success, reported if -vv)\n"
              << "           - CHECK-DAG not found after discarded matches (error)\n"
              << "  - ";
-   WithColor(outStream, RawOutStream::Colors::SAVEDCOLOR, true) << "?";
+   WithColor(outStream, raw_ostream::Colors::SAVEDCOLOR, true) << "?";
    outStream << "      marks fuzzy match when no match is found\n";
 
    // Colors.
    outStream << "  - colors ";
-   WithColor(outStream, RawOutStream::Colors::GREEN, true) << "success";
+   WithColor(outStream, raw_ostream::Colors::GREEN, true) << "success";
    outStream << ", ";
-   WithColor(outStream, RawOutStream::Colors::RED, true) << "error";
+   WithColor(outStream, raw_ostream::Colors::RED, true) << "error";
    outStream << ", ";
-   WithColor(outStream, RawOutStream::Colors::MAGENTA, true) << "fuzzy match";
+   WithColor(outStream, raw_ostream::Colors::MAGENTA, true) << "fuzzy match";
    outStream << ", ";
-   WithColor(outStream, RawOutStream::Colors::CYAN, true, false) << "discarded match";
+   WithColor(outStream, raw_ostream::Colors::CYAN, true, false) << "discarded match";
    outStream << ", ";
-   WithColor(outStream, RawOutStream::Colors::CYAN, true, true) << "unmatched input";
+   WithColor(outStream, raw_ostream::Colors::CYAN, true, true) << "unmatched input";
    outStream << "\n\n"
-             << "If you are not seeing color above or in input dumps, try: -color\n";
+             << "If you are not seeing color above or in input dumps, try: --color\n";
 }
 
 /// Get an abbreviation for the check type.
@@ -176,9 +177,9 @@ std::string get_check_type_abbreviation(FileCheckType type)
    case FileCheckKind::CheckBadCount:
       return "bad-count";
    case FileCheckKind::CheckNone:
-      polar_unreachable("invalid FileCheckType");
+      llvm_unreachable("invalid FileCheckType");
    }
-   polar_unreachable("unknown FileCheckType");
+   llvm_unreachable("unknown FileCheckType");
 }
 
 void build_input_annotations(const std::vector<FileCheckDiag> &diags,
@@ -194,53 +195,54 @@ void build_input_annotations(const std::vector<FileCheckDiag> &diags,
       InputAnnotation A;
 
       // Build label, which uniquely identifies this check result.
-      A.checkLine = diagItr->checkLine;
-      RawStringOutStream label(A.label);
-      label << get_check_type_abbreviation(diagItr->checkType) << ":"
-            << diagItr->checkLine;
+      A.checkLine = diagItr->CheckLine;
+      raw_string_ostream label(A.label);
+      label << get_check_type_abbreviation(diagItr->CheckTy) << ":"
+            << diagItr->CheckLine;
       A.checkDiagIndex = UINT_MAX;
-      auto DiagNext = std::next(diagItr);
-      if (DiagNext != diagEnd && diagItr->checkType == DiagNext->checkType &&
-          diagItr->checkLine == DiagNext->checkLine)
+      auto diagNext = std::next(diagItr);
+      if (diagNext != diagEnd && diagItr->CheckTy == diagNext->CheckTy &&
+          diagItr->CheckLine == diagNext->CheckLine) {
          A.checkDiagIndex = checkDiagCount++;
-      else if (checkDiagCount) {
+      } else if (checkDiagCount) {
          A.checkDiagIndex = checkDiagCount;
          checkDiagCount = 0;
       }
-      if (A.checkDiagIndex != UINT_MAX)
+      if (A.checkDiagIndex != UINT_MAX) {
          label << "'" << A.checkDiagIndex;
-      else
+      } else {
          A.checkDiagIndex = 0;
+      }
       label.flush();
       labelWidth = std::max((std::string::size_type)labelWidth, A.label.size());
 
-      MarkerStyle marker = get_marker(diagItr->matchType);
+      MarkerStyle marker = get_marker(diagItr->MatchTy);
       A.marker = marker;
       A.foundAndExpectedMatch =
-            diagItr->matchType == FileCheckDiag::MatchFoundAndExpected;
+            diagItr->MatchTy == FileCheckDiag::MatchFoundAndExpected;
 
       // Compute the mark location, and break annotation into multiple
       // annotations if it spans multiple lines.
-      A.inputLine = diagItr->inputStartLine;
-      A.inputStartCol = diagItr->inputStartCol;
-      if (diagItr->inputStartLine == diagItr->inputEndLine) {
+      A.inputLine = diagItr->InputStartLine;
+      A.inputStartCol = diagItr->InputStartCol;
+      if (diagItr->InputStartLine == diagItr->InputEndLine) {
          // Sometimes ranges are empty in order to indicate a specific point, but
          // that would mean nothing would be marked, so adjust the range to
          // include the following character.
          A.inputEndCol =
-               std::max(diagItr->inputStartCol + 1, diagItr->inputEndCol);
+               std::max(diagItr->InputStartCol + 1, diagItr->InputEndCol);
          annotations.push_back(A);
       } else {
-         assert(diagItr->inputStartLine < diagItr->inputEndLine &&
+         assert(diagItr->InputStartLine < diagItr->InputEndLine &&
                 "expected input range not to be inverted");
          A.inputEndCol = UINT_MAX;
          A.marker.note = "";
          annotations.push_back(A);
-         for (unsigned L = diagItr->inputStartLine + 1, E = diagItr->inputEndLine;
+         for (unsigned L = diagItr->InputStartLine + 1, E = diagItr->InputEndLine;
               L <= E; ++L) {
             // If a range ends before the first column on a line, then it has no
             // characters on that line, so there's nothing to render.
-            if (diagItr->inputEndCol == 1 && L == E) {
+            if (diagItr->InputEndCol == 1 && L == E) {
                annotations.back().marker.note = marker.note;
                break;
             }
@@ -256,7 +258,7 @@ void build_input_annotations(const std::vector<FileCheckDiag> &diags,
                B.inputEndCol = UINT_MAX;
                B.marker.note = "";
             } else
-               B.inputEndCol = diagItr->inputEndCol;
+               B.inputEndCol = diagItr->InputEndCol;
             B.foundAndExpectedMatch = A.foundAndExpectedMatch;
             annotations.push_back(B);
          }
@@ -264,7 +266,7 @@ void build_input_annotations(const std::vector<FileCheckDiag> &diags,
    }
 }
 
-void dump_annotated_input(RawOutStream &outStream, const FileCheckRequest &req,
+void dump_annotated_input(raw_ostream &outStream, const FileCheckRequest &req,
                           StringRef inputFileText,
                           std::vector<InputAnnotation> &annotations,
                           unsigned labelWidth)
@@ -286,11 +288,14 @@ void dump_annotated_input(RawOutStream &outStream, const FileCheckRequest &req,
    // results, is consistent across multiple lines, thus making match results
    // easier to track from one line to the next when they span multiple lines.
    std::sort(annotations.begin(), annotations.end(),
-             [](const InputAnnotation &A, const InputAnnotation &B) {
-      if (A.inputLine != B.inputLine)
+             [](const InputAnnotation &A, const InputAnnotation &B)
+   {
+      if (A.inputLine != B.inputLine) {
          return A.inputLine < B.inputLine;
-      if (A.checkLine != B.checkLine)
+      }
+      if (A.checkLine != B.checkLine) {
          return A.checkLine < B.checkLine;
+      }
       // FIXME: Sometimes CHECK-LABEL reports its match twice with
       // other diagnostics in between, and then diag index incrementing
       // fails to work properly, and then this assert fails.  We should
@@ -304,12 +309,13 @@ void dump_annotated_input(RawOutStream &outStream, const FileCheckRequest &req,
    });
 
    // Compute the width of the label column.
-   const unsigned char *InputFilePtr = inputFileText.getBytesBegin(),
-         *InputFileEnd = inputFileText.getBytesEnd();
-   unsigned LineCount = inputFileText.count('\n');
-   if (InputFileEnd[-1] != '\n')
-      ++LineCount;
-   unsigned LineNoWidth = log10(LineCount) + 1;
+   const unsigned char *inputFilePtr = inputFileText.bytes_begin(),
+         *inputFileEnd = inputFileText.bytes_end();
+   unsigned lineCount = inputFileText.count('\n');
+   if (inputFileEnd[-1] != '\n') {
+      ++lineCount;
+   }
+   unsigned lineNoWidth = log10(lineCount) + 1;
    // +3 below adds spaces (1) to the left of the (right-aligned) line numbers
    // on input lines and (2) to the right of the (left-aligned) labels on
    // annotation lines so that input lines and annotation lines are more
@@ -318,88 +324,96 @@ void dump_annotated_input(RawOutStream &outStream, const FileCheckRequest &req,
    // horizontally.  Those line numbers might not even be for the same file.
    // One space would be enough to achieve that, but more makes it even easier
    // to see.
-   labelWidth = std::max(labelWidth, LineNoWidth) + 3;
+   labelWidth = std::max(labelWidth, lineNoWidth) + 3;
 
    // Print annotated input lines.
-   auto AnnotationItr = annotations.begin(), AnnotationEnd = annotations.end();
-   for (unsigned Line = 1;
-        InputFilePtr != InputFileEnd || AnnotationItr != AnnotationEnd;
-        ++Line) {
-      const unsigned char *InputFileLine = InputFilePtr;
+   auto annotationItr = annotations.begin(), annotationEnd = annotations.end();
+   for (unsigned line = 1;
+        inputFilePtr != inputFileEnd || annotationItr != annotationEnd;
+        ++line) {
+      const unsigned char *inputFileLine = inputFilePtr;
 
       // Print right-aligned line number.
-      WithColor(outStream, RawOutStream::Colors::BLACK, true)
-            << polar::utils::format_decimal(Line, labelWidth) << ": ";
+      WithColor(outStream, raw_ostream::Colors::BLACK, true)
+            << llvm::format_decimal(line, labelWidth) << ": ";
 
       // For the case where -v and colors are enabled, find the annotations for
       // good matches for expected patterns in order to highlight everything
       // else in the line.  There are no such annotations if -v is disabled.
-      std::vector<InputAnnotation> FoundAndExpectedMatches;
-      if (req.verbose && WithColor(outStream).colorsEnabled()) {
-         for (auto I = AnnotationItr; I != AnnotationEnd && I->inputLine == Line;
-              ++I) {
-            if (I->foundAndExpectedMatch)
-               FoundAndExpectedMatches.push_back(*I);
+      std::vector<InputAnnotation> foundAndExpectedMatches;
+      if (req.Verbose && WithColor(outStream).colorsEnabled()) {
+         for (auto index = annotationItr; index != annotationEnd && index->inputLine == line;
+              ++index) {
+            if (index->foundAndExpectedMatch) {
+               foundAndExpectedMatches.push_back(*index);
+            }
          }
       }
 
       // Print numbered line with highlighting where there are no matches for
       // expected patterns.
-      bool Newline = false;
+      bool newline = false;
       {
-         WithColor COS(outStream);
-         bool InMatch = false;
-         if (req.verbose)
-            COS.changeColor(RawOutStream::Colors::CYAN, true, true);
-         for (unsigned Col = 1; InputFilePtr != InputFileEnd && !Newline; ++Col) {
-            bool WasInMatch = InMatch;
-            InMatch = false;
-            for (auto M : FoundAndExpectedMatches) {
-               if (M.inputStartCol <= Col && Col < M.inputEndCol) {
-                  InMatch = true;
+         WithColor cos(outStream);
+         bool inMatch = false;
+         if (req.Verbose) {
+            cos.changeColor(raw_ostream::Colors::CYAN, true, true);
+         }
+         for (unsigned col = 1; inputFilePtr != inputFileEnd && !newline; ++col) {
+            bool wasInMatch = inMatch;
+            inMatch = false;
+            for (auto M : foundAndExpectedMatches) {
+               if (M.inputStartCol <= col && col < M.inputEndCol) {
+                  inMatch = true;
                   break;
                }
             }
-            if (!WasInMatch && InMatch)
-               COS.resetColor();
-            else if (WasInMatch && !InMatch)
-               COS.changeColor(RawOutStream::Colors::CYAN, true, true);
-            if (*InputFilePtr == '\n')
-               Newline = true;
-            else
-               COS << *InputFilePtr;
-            ++InputFilePtr;
+            if (!wasInMatch && inMatch) {
+               cos.resetColor();
+            } else if (wasInMatch && !inMatch) {
+               cos.changeColor(raw_ostream::Colors::CYAN, true, true);
+            }
+            if (*inputFilePtr == '\n') {
+               newline = true;
+            } else {
+               cos << *inputFilePtr;
+            }
+            ++inputFilePtr;
          }
       }
       outStream << '\n';
-      unsigned InputLineWidth = InputFilePtr - InputFileLine - Newline;
+      unsigned inputLineWidth = inputFilePtr - inputFileLine - newline;
 
       // Print any annotations.
-      while (AnnotationItr != AnnotationEnd &&
-             AnnotationItr->inputLine == Line) {
-         WithColor COS(outStream, AnnotationItr->marker.color, true);
+      while (annotationItr != annotationEnd &&
+             annotationItr->inputLine == line) {
+         WithColor cos(outStream, annotationItr->marker.color, true);
          // The two spaces below are where the ": " appears on input lines.
-         COS << polar::utils::left_justify(AnnotationItr->label, labelWidth) << "  ";
-         unsigned Col;
-         for (Col = 1; Col < AnnotationItr->inputStartCol; ++Col)
-            COS << ' ';
-         COS << AnnotationItr->marker.lead;
-         // If inputEndCol=UINT_MAX, stop at InputLineWidth.
-         for (++Col; Col < AnnotationItr->inputEndCol && Col <= InputLineWidth;
-              ++Col)
-            COS << '~';
-         const std::string &note = AnnotationItr->marker.note;
+         cos << llvm::left_justify(annotationItr->label, labelWidth) << "  ";
+         unsigned col;
+         for (col = 1; col < annotationItr->inputStartCol; ++col) {
+            cos << ' ';
+         }
+         cos << annotationItr->marker.lead;
+         // If inputEndCol=UINT_MAX, stop at inputLineWidth.
+         for (++col; col < annotationItr->inputEndCol && col <= inputLineWidth;
+              ++col) {
+            cos << '~';
+         }
+
+         const std::string &note = annotationItr->marker.note;
          if (!note.empty()) {
             // Put the note at the end of the input line.  If we were to instead
             // put the note right after the marker, subsequent annotations for the
             // same input line might appear to mark this note instead of the input
             // line.
-            for (; Col <= InputLineWidth; ++Col)
-               COS << ' ';
-            COS << ' ' << note;
+            for (; col <= inputLineWidth; ++col) {
+               cos << ' ';
+            }
+            cos << ' ' << note;
          }
-         COS << '\n';
-         ++AnnotationItr;
+         cos << '\n';
+         ++annotationItr;
       }
    }
 

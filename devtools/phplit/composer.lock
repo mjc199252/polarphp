@@ -4,8 +4,19 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1881fd1021b907d9cd2643d4d84403f8",
+    "content-hash": "5795043dfe724c24ff4cb65f022e9281",
     "packages": [
+        {
+            "name": "chrisboulton/php-diff",
+            "version": "master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/chrisboulton/php-diff.git",
+                "reference": "master"
+            },
+            "type": "library",
+            "time": "2016-10-14T23:54:40+00:00"
+        },
         {
             "name": "psr/cache",
             "version": "1.0.1",
@@ -1993,7 +2004,7 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "stability-flags": [],
     "prefer-stable": false,
     "prefer-lowest": false,

@@ -214,7 +214,7 @@ class TestingConfig
          $config = $this;
          include $path;
          if ($litConfig->isDebug()){
-            TestLogger::note('... loaded config %s', $path);
+            TestLogger::note("... loaded config '%s'", $path);
          }
          $this->loadFinish();
       } catch (\ParseError $error) {
@@ -227,6 +227,11 @@ class TestingConfig
       $this->name = (string)$this->name;
       $this->suffixes = (array)$this->suffixes;
       $this->environment = (array)$this->environment;
+      if (isset($this->environment['PATH'])) {
+         $path = $this->environment['PATH'];
+         $path = POLARPHP_BIN_DIR.PATH_SEPARATOR.$path;
+         $this->environment['PATH'] = $path;
+      }
       $this->substitutions = (array)$this->substitutions;
       if (!$this->testExecRoot) {
          // FIXME: This should really only be suite in test suite config
@@ -342,6 +347,18 @@ class TestingConfig
    }
 
    /**
+    * @param string $name
+    * @return TestingConfig
+    */
+   public function unsetEnvVar(string $name): TestingConfig
+   {
+      if (array_key_exists($name, $this->environment)) {
+         unset($this->environment[$name]);
+      }
+      return $this;
+   }
+
+   /**
     * @return array
     */
    public function getSubstitutions(): array
@@ -356,6 +373,17 @@ class TestingConfig
    public function setSubstitutions(array $substitutions): TestingConfig
    {
       $this->substitutions = $substitutions;
+      return $this;
+   }
+
+   /**
+    * @param string $name
+    * @param string $value
+    * @return TestingConfig
+    */
+   public function addSubstitution(string $name, string $value): TestingConfig
+   {
+      $this->substitutions[] = [$name, $value];
       return $this;
    }
 
@@ -450,6 +478,16 @@ class TestingConfig
    }
 
    /**
+    * @param $feature
+    * @return TestingConfig
+    */
+   public function addAvailableFeature($feature): TestingConfig
+   {
+      $this->availableFeatures[] = $feature;
+      return $this;
+   }
+
+   /**
     * @return bool
     */
    public function isPipeFail(): bool
@@ -529,7 +567,7 @@ class TestingConfig
 
    public function getExtraConfig(string $name, $defaultValue)
    {
-      if (array_key_exists($name, $this->extraConfig)) {
+      if (!array_key_exists($name, $this->extraConfig)) {
          return $defaultValue;
       }
       return $this->extraConfig[$name];

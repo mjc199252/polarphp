@@ -58,7 +58,7 @@ class TestResultCode
 
    public static function FLAKYPASS() : TestResultCode
    {
-      return self::getInstance('PASS', false);
+      return self::getInstance('FLAKYPASS', false);
    }
 
    public static function XFAIL() : TestResultCode
@@ -101,9 +101,9 @@ class TestResultCode
 
    /**
     * @param string $name
-    * @return ResultCode
+    * @return TestResultCode
     */
-   public function setName(string $name): ResultCode
+   public function setName(string $name): TestResultCode
    {
       $this->name = $name;
       return $this;
@@ -119,9 +119,9 @@ class TestResultCode
 
    /**
     * @param bool $isFailure
-    * @return ResultCode
+    * @return TestResultCode
     */
-   public function setIsFailure(bool $isFailure): ResultCode
+   public function setIsFailure(bool $isFailure): TestResultCode
    {
       $this->isFailure = $isFailure;
       return $this;

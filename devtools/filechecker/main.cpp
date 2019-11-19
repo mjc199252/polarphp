@@ -11,25 +11,24 @@
 
 #include "CLI/CLI.hpp"
 #include "lib/ExtraFuncs.h"
-#include "polarphp/basic/adt/StringRef.h"
-#include "polarphp/basic/adt/SmallString.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/FileCheck.h"
 #include "polarphp/utils/InitPolar.h"
-#include "polarphp/utils/SourceMgr.h"
-#include "polarphp/utils/OptionalError.h"
-#include "polarphp/utils/MemoryBuffer.h"
-#include "polarphp/utils/Process.h"
-#include <boost/regex.hpp>
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Process.h"
 
-using polar::basic::StringRef;
+using llvm::StringRef;
 using namespace polar::filechecker;
-using namespace polar::utils;
-using namespace polar::basic;
+using namespace llvm;
 
 int main(int argc, char *argv[])
 {
    // Enable use of ANSI color codes because FileCheck is using them to
    // highlight text.
-   polar::sys::Process::useANSIEscapeCodes(true);
+   sys::Process::UseANSIEscapeCodes(true);
    polar::InitPolar polarInitializer(argc, argv);
    CLI::App cmdParser;
    sg_commandParser = &cmdParser;
@@ -47,8 +46,9 @@ int main(int argc, char *argv[])
    bool verbose;
    bool verboseVerbose = false;
    int dumpInputOnFailure = 0;
+   bool enableColor = false;
 
-   cmdParser.add_option("check-filename", checkFilename, "<check-file>")->required(true)->check(CLI::ExistingFile);
+   cmdParser.add_option("check-filename", checkFilename, "<check-file>")->check(CLI::ExistingFile);
    cmdParser.add_option("--input-file", inputFilename, "File to check (defaults to stdin)")->default_val("-")
          ->type_name("filename");
    cmdParser.add_option("--check-prefix", checkPrefix, "Prefix to use from check file (defaults to 'CHECK')");
@@ -81,18 +81,24 @@ int main(int argc, char *argv[])
                                                       "\talways Always dump input\n")
          ->default_val("default")
          ->check(dump_input_checker);
+   cmdParser.add_flag("--color", enableColor, "Enable color output");
    CLI::Option *dumpInputOnFailureOpt = cmdParser.add_option("--dump-input-on-failure", dumpInputOnFailure, "Dump original input to stderr before failing."
                                                                                                             "The value can be also controlled using "
                                                                                                             "FILECHECK_DUMP_INPUT_ON_FAILURE environment variable.");
-   CLI11_PARSE(cmdParser, argc, argv);
+   CLI11_PARSE(cmdParser, argc, argv)
    dumpInput = get_dump_input_type(dumpInputStr);
    if (dumpInput == DumpInputValue::Help) {
-      dump_input_annotation_help(polar::utils::out_stream());
+      dump_input_annotation_help(outs());
       return 0;
    }
 
+   if (checkFilename.empty()) {
+      errs() << "<check-file> not specified\n";
+      return 2;
+   }
+
    if (dumpInputOnFailureOpt->count() == 0) {
-      std::string dumpInputOnFailureEnv = StringRef(std::getenv("FILECHECK_DUMP_INPUT_ON_FAILURE")).trim().toLower();
+      std::string dumpInputOnFailureEnv = StringRef(std::getenv("FILECHECK_DUMP_INPUT_ON_FAILURE")).trim().lower();
       if (!dumpInputOnFailureEnv.empty() && (dumpInputOnFailureEnv == "true" || dumpInputOnFailureEnv == "on" || dumpInputOnFailureEnv == "1")) {
          dumpInputOnFailure = 1;
       } else {
@@ -103,30 +109,35 @@ int main(int argc, char *argv[])
    FileCheckRequest checkRequest;
    if (!checkPrefix.empty()) {
       for (std::string &prefix : checkPrefix) {
-         checkRequest.checkPrefixes.push_back(prefix);
+         checkRequest.CheckPrefixes.push_back(prefix);
+      }
+   }
+   if (!sg_checkPrefixes.empty()) {
+      for (std::string &prefix : sg_checkPrefixes) {
+         checkRequest.CheckPrefixes.push_back(prefix);
       }
    }
 
    for (auto item : sg_implicitCheckNot) {
-      checkRequest.implicitCheckNot.push_back(item);
+      checkRequest.ImplicitCheckNot.push_back(item);
    }
 
    bool globalDefineError = false;
    for (auto def : sg_defines) {
       size_t eqIdx = def.find('=');
       if (eqIdx == std::string::npos) {
-         error_stream() << "Missing equal sign in command-line definition '-D" << def
-                        << "'\n";
+         errs() << "Missing equal sign in command-line definition '-D" << def
+                << "'\n";
          globalDefineError = true;
          continue;
       }
       if (eqIdx == 0) {
-         error_stream() << "Missing pattern variable name in command-line definition '-D"
-                        << def << "'\n";
+         errs() << "Missing variable name in command-line definition '-D"
+                << def << "'\n";
          globalDefineError = true;
          continue;
       }
-      checkRequest.globalDefines.push_back(def);
+      checkRequest.GlobalDefines.push_back(def);
    }
 
    if (globalDefineError) {
@@ -137,109 +148,107 @@ int main(int argc, char *argv[])
       verboseVerbose = true;
    }
 
-   checkRequest.allowEmptyInput = allowEmptyInput;
-   checkRequest.enableVarScope = enableVarScope;
-   checkRequest.allowDeprecatedDagOverlap = allowDeprecatedDagOverlap;
-   checkRequest.verbose = verbose;
-   checkRequest.verboseVerbose = verboseVerbose;
-   checkRequest.noCanonicalizeWhiteSpace = noCanonicalizeWhiteSpace;
-   checkRequest.matchFullLines = matchFullLines;
+   checkRequest.AllowEmptyInput = allowEmptyInput;
+   checkRequest.EnableVarScope = enableVarScope;
+   checkRequest.AllowDeprecatedDagOverlap = allowDeprecatedDagOverlap;
+   checkRequest.Verbose = verbose;
+   checkRequest.VerboseVerbose = verboseVerbose;
+   checkRequest.NoCanonicalizeWhiteSpace = noCanonicalizeWhiteSpace;
+   checkRequest.MatchFullLines = matchFullLines;
 
    if (verboseVerbose) {
-      checkRequest.verbose = true;
+      checkRequest.Verbose = true;
    }
 
    FileCheck fileChecker(checkRequest);
-   if (!fileChecker.validateCheckPrefixes()) {
-      error_stream() << "Supplied check-prefix is invalid! Prefixes must be unique and "
-                        "start with a letter and contain only alphanumeric characters, "
-                        "hyphens and underscores\n";
+   if (!fileChecker.ValidateCheckPrefixes()) {
+      errs() << "Supplied check-prefix is invalid! Prefixes must be unique and "
+                "start with a letter and contain only alphanumeric characters, "
+                "hyphens and underscores\n";
       return 2;
    }
 
-   boost::regex prefixRegex;
+   Regex prefixRegex;
    try {
       prefixRegex = fileChecker.buildCheckPrefixRegex();
    } catch (std::exception &e) {
-      error_stream() << "Unable to combine check-prefix strings into a prefix regular "
-                        "expression! This is likely a bug in FileCheck's verification of "
-                        "the check-prefix strings. Regular expression parsing failed "
-                        "with the following error: "
-                     << e.what() << "\n";
+      errs() << "Unable to combine check-prefix strings into a prefix regular "
+                "expression! This is likely a bug in FileCheck's verification of "
+                "the check-prefix strings. Regular expression parsing failed "
+                "with the following error: "
+             << e.what() << "\n";
       return 2;
    }
 
    SourceMgr sourceMgr;
 
    // Read the expected strings from the check file.
-   OptionalError<std::unique_ptr<MemoryBuffer>> checkFileOrError =
-         MemoryBuffer::getFileOrStdIn(checkFilename);
+   ErrorOr<std::unique_ptr<MemoryBuffer>> checkFileOrError =
+         MemoryBuffer::getFileOrSTDIN(checkFilename);
    if (std::error_code errorCode = checkFileOrError.getError()) {
-      error_stream() << "Could not open check file '" << checkFilename
-                     << "': " << errorCode.message() << '\n';
+      errs() << "Could not open check file '" << checkFilename
+             << "': " << errorCode.message() << '\n';
       return 2;
    }
    MemoryBuffer &checkFile = *checkFileOrError.get();
 
    SmallString<4096> checkFileBuffer;
-   StringRef checkFileText = fileChecker.canonicalizeFile(checkFile, checkFileBuffer);
+   StringRef checkFileText = fileChecker.CanonicalizeFile(checkFile, checkFileBuffer);
 
-   sourceMgr.addNewSourceBuffer(MemoryBuffer::getMemBuffer(
+   sourceMgr.AddNewSourceBuffer(MemoryBuffer::getMemBuffer(
                                    checkFileText, checkFile.getBufferIdentifier()),
-                                SMLocation());
+                                SMLoc());
 
-   std::vector<FileCheckString> checkStrings;
-   if (fileChecker.readCheckFile(sourceMgr, checkFileText, prefixRegex, checkStrings)) {
+   if (fileChecker.readCheckFile(sourceMgr, checkFileText, prefixRegex)) {
       return 2;
    }
 
-
    // Open the file to check and add it to SourceMgr.
-   OptionalError<std::unique_ptr<MemoryBuffer>> inputFileOrErr =
-         MemoryBuffer::getFileOrStdIn(inputFilename);
+   ErrorOr<std::unique_ptr<MemoryBuffer>> inputFileOrErr =
+         MemoryBuffer::getFileOrSTDIN(inputFilename);
    if (std::error_code errorCode = inputFileOrErr.getError()) {
-      error_stream() << "Could not open input file '" << inputFilename
-                     << "': " << errorCode.message() << '\n';
+      errs() << "Could not open input file '" << inputFilename
+             << "': " << errorCode.message() << '\n';
       return 2;
    }
    MemoryBuffer &inputFile = *inputFileOrErr.get();
 
    if (inputFile.getBufferSize() == 0 && !allowEmptyInput) {
-      error_stream() << "FileCheck error: '" << inputFilename << "' is empty.\n";
+      errs() << "filechecker error: '" << inputFilename << "' is empty.\n";
       dump_command_line(argc, argv);
       return 2;
    }
 
    SmallString<4096> InputFileBuffer;
-   StringRef inputFileText = fileChecker.canonicalizeFile(inputFile, InputFileBuffer);
+   StringRef inputFileText = fileChecker.CanonicalizeFile(inputFile, InputFileBuffer);
 
-   sourceMgr.addNewSourceBuffer(MemoryBuffer::getMemBuffer(
+   sourceMgr.AddNewSourceBuffer(MemoryBuffer::getMemBuffer(
                                    inputFileText, inputFile.getBufferIdentifier()),
-                                SMLocation());
+                                SMLoc());
 
    if (dumpInput == DumpInputValue::Default) {
       dumpInput = dumpInputOnFailure ? DumpInputValue::Fail : DumpInputValue::Never;
    }
 
    std::vector<FileCheckDiag> diags;
-   int exitCode = fileChecker.checkInput(sourceMgr, inputFileText, checkStrings,
+   int exitCode = fileChecker.checkInput(sourceMgr, inputFileText,
                                          dumpInput == DumpInputValue::Never ? nullptr : &diags)
          ? EXIT_SUCCESS
          : 1;
    if (dumpInput == DumpInputValue::Always ||
        (exitCode == 1 && dumpInput == DumpInputValue::Fail)) {
-      error_stream() << "\n"
-                     << "Input file: "
-                     << (inputFilename == "-" ? "<stdin>" : inputFilename)
-                     << "\n"
-                     << "Check file: " << checkFilename << "\n"
-                     << "\n"
-                     << "-dump-input=help describes the format of the following dump.\n"
-                     << "\n";
+      errs() << "\n"
+             << "Input file: "
+             << (inputFilename == "-" ? "<stdin>" : inputFilename)
+             << "\n"
+             << "Check file: " << checkFilename << "\n"
+             << "\n"
+             << "--dump-input=help describes the format of the following dump.\n"
+             << "\n";
       std::vector<InputAnnotation> annotations;
       unsigned labelWidth;
       build_input_annotations(diags, annotations, labelWidth);
-      dump_annotated_input(error_stream(), checkRequest, inputFileText, annotations, labelWidth);
+      dump_annotated_input(errs(), checkRequest, inputFileText, annotations, labelWidth);
    }
 
    return exitCode;

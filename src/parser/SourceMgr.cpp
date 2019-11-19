@@ -26,16 +26,16 @@
 
 #include "polarphp/parser/SourceLoc.h"
 #include "polarphp/parser/SourceMgr.h"
-#include "polarphp/utils/MemoryBuffer.h"
-#include "polarphp/utils/PrettyStackTrace.h"
-#include "polarphp/utils/RawOutStream.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <optional>
 
 namespace polar::parser {
 
-using polar::utils::PrettyStackTraceString;
-using polar::utils::SMLocation;
+using llvm::PrettyStackTraceString;
+using llvm::SMLoc;
 
 void SourceManager::verifyAllBuffers() const
 {
@@ -44,7 +44,7 @@ void SourceManager::verifyAllBuffers() const
    };
 
    // FIXME: This depends on the buffer IDs chosen by llvm::SourceMgr.
-   POLAR_ATTRIBUTE_USED static char arbitraryTotal = 0;
+   LLVM_ATTRIBUTE_USED static char arbitraryTotal = 0;
    for (unsigned i = 1, e = m_sourceMgr.getNumBuffers(); i <= e; ++i) {
       auto *buffer = m_sourceMgr.getMemoryBuffer(i);
       if (buffer->getBufferSize() == 0) {
@@ -57,7 +57,7 @@ void SourceManager::verifyAllBuffers() const
 
 SourceLoc SourceManager::getCodeCompletionLoc() const
 {
-   return getLocForBufferStart(m_codeCompletionBufferID)
+   return getLocForBufferStart(m_codeCompletionBufferId)
          .getAdvancedLoc(m_codeCompletionOffset);
 }
 
@@ -75,7 +75,7 @@ StringRef SourceManager::getDisplayNameForLoc(SourceLoc loc) const
    }
 
    // Populate the cache with a (virtual) stat.
-   if (auto status = m_filesystem->getStatus(ident)) {
+   if (auto status = m_filesystem->status(ident)) {
       return (m_statusCache[ident] = status.get()).getName();
    }
 
@@ -88,8 +88,8 @@ SourceManager::addNewSourceBuffer(std::unique_ptr<MemoryBuffer> buffer)
 {
    assert(buffer);
    StringRef bufIdentifier = buffer->getBufferIdentifier();
-   auto id = m_sourceMgr.addNewSourceBuffer(std::move(buffer), SMLocation());
-   m_bufIdentIDMap[bufIdentifier] = id;
+   auto id = m_sourceMgr.AddNewSourceBuffer(std::move(buffer), SMLoc());
+   m_bufIdentIdMap[bufIdentifier] = id;
    return id;
 }
 
@@ -180,8 +180,8 @@ SourceManager::getVirtualFile(SourceLoc loc) const
 std::optional<unsigned> SourceManager::getIDForBufferIdentifier(
       StringRef bufIdentifier)
 {
-   auto iter = m_bufIdentIDMap.find(bufIdentifier);
-   if (iter == m_bufIdentIDMap.end()) {
+   auto iter = m_bufIdentIdMap.find(bufIdentifier);
+   if (iter == m_bufIdentIdMap.end()) {
       return std::nullopt;
    }
    return iter->second;
@@ -197,7 +197,7 @@ StringRef SourceManager::getIdentifierForBuffer(unsigned bufferID) const
 CharSourceRange SourceManager::getRangeForBuffer(unsigned bufferID) const
 {
    auto *buffer = m_sourceMgr.getMemoryBuffer(bufferID);
-   SourceLoc start{SMLocation::getFromPointer(buffer->getBufferStart())};
+   SourceLoc start{SMLoc::getFromPointer(buffer->getBufferStart())};
    return CharSourceRange(start, buffer->getBufferSize());
 }
 
@@ -228,7 +228,8 @@ unsigned SourceManager::getByteDistance(SourceLoc start, SourceLoc end) const
    return end.m_loc.getPointer() - start.m_loc.getPointer();
 }
 
-StringRef SourceManager::getEntireTextForBuffer(unsigned bufferID) const {
+StringRef SourceManager::getEntireTextForBuffer(unsigned bufferID) const
+{
    return m_sourceMgr.getMemoryBuffer(bufferID)->getBuffer();
 }
 
@@ -259,7 +260,7 @@ unsigned SourceManager::findBufferContainingLoc(SourceLoc loc) const
           less_equal(loc.m_loc.getPointer(), buffer->getBufferEnd()))
          return i;
    }
-   polar_unreachable("no buffer containing location found");
+   llvm_unreachable("no buffer containing location found");
 }
 
 std::optional<unsigned> SourceManager::resolveFromLineCol(unsigned bufferId,

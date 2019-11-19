@@ -13,8 +13,6 @@
 namespace Lit;
 
 use Symfony\Bundle\FrameworkBundle\Console\Application as BaseApplication;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\HttpKernel\KernelInterface;
 
 class Application extends BaseApplication
@@ -26,15 +24,5 @@ class Application extends BaseApplication
       parent::__construct($Kernel);
       $this->setName("phplit");
       $this->setVersion(Application::VERSION);
-   }
-
-   public function loadExtraFiles()
-   {
-      $files = array(
-         "src/Utils/UtilFuncs.php"
-      );
-      foreach ($files as $file) {
-         include LIT_ROOT_DIR .DIRECTORY_SEPARATOR . $file;
-      }
    }
 }

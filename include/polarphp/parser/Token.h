@@ -18,9 +18,8 @@
 #ifndef POLAR_PARSER_TOKEN_H
 #define POLAR_PARSER_TOKEN_H
 
-#include "polarphp/basic/adt/StringRef.h"
+#include "llvm/ADT/StringRef.h"
 #include "polarphp/basic/FlagSet.h"
-#include "polarphp/utils/SourceLocation.h"
 #include "polarphp/parser/SourceLoc.h"
 #include "polarphp/syntax/TokenKinds.h"
 #include "polarphp/parser/internal/YYParserDefs.h"
@@ -28,22 +27,25 @@
 #include <any>
 
 /// forward declare class with namespace
-namespace polar::utils {
-class RawOutStream;
+namespace llvm {
+class raw_ostream;
 }
 
 namespace polar::parser {
 
 using polar::basic::StringRef;
 using polar::basic::FlagSet;
-using polar::utils::RawOutStream;
 using polar::syntax::TokenKindType;
+using polar::syntax::TokenCategory;
 using polar::parser::internal::ParserSemantic;
+using llvm::raw_ostream;
+using llvm::SMLoc;
 
 class TokenFlags final : public FlagSet<std::uint8_t>
 {
-protected:
-   enum {
+public:
+   enum FlagType
+   {
       NeedCorrectLNumberOverflow,
       AtStartOfLine,
       EscapedIdentifier,
@@ -51,12 +53,11 @@ protected:
    };
 
 public:
-   explicit TokenFlags(std::uint16_t bits)
+   explicit TokenFlags(std::uint8_t bits)
       : FlagSet(bits)
    {}
 
-   constexpr TokenFlags()
-   {}
+   constexpr TokenFlags() {}
 
    FLAGSET_DEFINE_FLAG_ACCESSORS(NeedCorrectLNumberOverflow, isNeedCorrectLNumberOverflow, setNeedCorrectLNumberOverflow)
    FLAGSET_DEFINE_FLAG_ACCESSORS(AtStartOfLine, isAtStartOfLine, setAtStartOfLine)
@@ -75,6 +76,7 @@ class Token
 public:
    enum class ValueType
    {
+      Invalid,
       Unknown,
       LongLong,
       String,
@@ -86,11 +88,15 @@ public:
         m_kind(kind),
         m_commentLength(commentLength),
         m_valueType(ValueType::Unknown),
-        m_text(text)
+        m_lexicalText(text)
+   {}
+
+   Token(TokenKindType kind, unsigned commentLength = 0)
+      : Token(kind, polar::syntax::get_token_text(kind), commentLength)
    {}
 
    Token()
-      : Token(TokenKindType::T_UNKNOWN_MARK, {}, 0)
+      : Token(TokenKindType::T_UNKNOWN_MARK, 0)
    {}
 
    TokenKindType getKind() const
@@ -102,6 +108,16 @@ public:
    {
       m_kind = kind;
       return *this;
+   }
+
+   StringRef getName() const
+   {
+      return polar::syntax::get_token_name(m_kind);
+   }
+
+   StringRef getDefinedText() const
+   {
+      return polar::syntax::get_token_text(m_kind);
    }
 
    Token & clearCommentLegth()
@@ -146,14 +162,15 @@ public:
       return false;
    }
 
-   bool isAnyOperator() const
+   TokenFlags getFlags() const
    {
-      return false;
+      return m_flags;
    }
 
-   bool isNotAnyOperator() const
+   Token &setFlags(TokenFlags flags)
    {
-      return !isAnyOperator();
+      m_flags = flags;
+      return *this;
    }
 
    /// Determine whether this token occurred at the start of a line.
@@ -206,55 +223,67 @@ public:
       return m_flags.isNeedCorrectLNumberOverflow();
    }
 
-   /// True if the token is an identifier
-   bool isIdentifier() const
+   TokenCategory getCategory() const
    {
-      return false;
+      return polar::syntax::get_token_category(m_kind);
    }
 
-   /// True if the token is any keyword.
+   bool isDeclKeyword() const
+   {
+      return polar::syntax::is_decl_keyword_token(m_kind);
+   }
+
+   bool isStmtKeyword() const
+   {
+      return polar::syntax::is_stmt_keyword_token(m_kind);
+   }
+
+   bool isExprKeyword() const
+   {
+      return polar::syntax::is_expr_keyword_token(m_kind);
+   }
+
    bool isKeyword() const
    {
-      return false;
-   }
-
-   /// True if the token is any literal.
-   bool isLiteral() const
-   {
-      return false;
+      return polar::syntax::is_keyword_token(m_kind);
    }
 
    bool isPunctuation() const
    {
-      return false;
+      return polar::syntax::is_punctuator_token(m_kind);
+   }
+
+   bool isInternal() const
+   {
+      return polar::syntax::is_internal_token(m_kind);
    }
 
    bool hasValue() const
    {
-      return m_value.has_value();
+      return !isInvalidLexValue() && m_value.has_value();
    }
 
    /// getLoc - Return a source location identifier for the specified
    /// offset in the current file.
    SourceLoc getLoc() const
    {
-      return SourceLoc(polar::utils::SMLocation::getFromPointer(m_text.begin()));
+      return SourceLoc(SMLoc::getFromPointer(m_lexicalText.begin()));
    }
 
-   std::size_t getLength() const
+   std::size_t getLexicalLength() const
    {
-      return m_text.size();
+      return m_lexicalText.size();
    }
 
    CharSourceRange getRange() const
    {
-      return CharSourceRange(getLoc(), getLength());
+      return CharSourceRange(getLoc(), getLexicalLength());
    }
 
    CharSourceRange getRangeWithoutBackticks() const
    {
       SourceLoc TokLoc = getLoc();
-      std::size_t TokLength = getLength();
+      std::size_t TokLength = getLexicalLength();
       if (isEscapedIdentifier()) {
          // Adjust to account for the backticks.
          TokLoc = TokLoc.getAdvancedLoc(1);
@@ -271,13 +300,13 @@ public:
    CharSourceRange getCommentRange() const
    {
       if (m_commentLength == 0) {
-         return CharSourceRange(SourceLoc(polar::utils::SMLocation::getFromPointer(m_text.begin())),
+         return CharSourceRange(SourceLoc(SMLoc::getFromPointer(m_lexicalText.begin())),
                                 0);
       }
 
       auto trimedComment = trimComment();
       return CharSourceRange(
-               SourceLoc(polar::utils::SMLocation::getFromPointer(trimedComment.begin())),
+               SourceLoc(SMLoc::getFromPointer(trimedComment.begin())),
                trimedComment.size());
    }
 
@@ -286,41 +315,43 @@ public:
       if (m_commentLength == 0) {
          return SourceLoc();
       }
-      return SourceLoc(polar::utils::SMLocation::getFromPointer(trimComment().begin()));
+      return SourceLoc(SMLoc::getFromPointer(trimComment().begin()));
    }
 
-   StringRef getRawText() const
+   StringRef getRawLexicalText() const
    {
-      return m_text;
+      return m_lexicalText;
    }
 
-   StringRef getText() const
+   StringRef getLexicalText() const
    {
       if (m_flags.isEscapedIdentifier()) {
          // Strip off the backticks on either side.
-         assert(m_text.front() == '`' && m_text.back() == '`');
-         return m_text.slice(1, m_text.size() - 1);
+         assert(m_lexicalText.front() == '`' && m_lexicalText.back() == '`');
+         return m_lexicalText.slice(1, m_lexicalText.size() - 1);
       }
-      return m_text;
+      return m_lexicalText;
    }
 
-   Token &setText(StringRef text)
+   Token &setLexicalText(StringRef text)
    {
-      m_text = text;
+      m_lexicalText = text;
       return *this;
    }
 
    Token &setValue(StringRef value)
    {
       m_valueType = ValueType::String;
-      m_value.emplace<std::string>(value.data(), value.getSize());
+      m_value.emplace<std::string>(value.data(), value.size());
       return *this;
    }
 
-   Token &setValue(std::int64_t value)
+   template <typename T,
+             typename std::enable_if<std::is_integral<T>::value, void *>::type = nullptr>
+   Token &setValue(T value)
    {
       m_valueType = ValueType::LongLong;
-      m_value.emplace<std::int64_t>(value);
+      m_value.emplace<std::int64_t>(static_cast<std::int64_t>(value));
       return *this;
    }
 
@@ -364,7 +395,7 @@ public:
    Token &setToken(TokenKindType kind, StringRef text = StringRef(), unsigned commentLength = 0)
    {
       m_kind = kind;
-      m_text = text;
+      m_lexicalText = text;
       m_commentLength = commentLength;
       m_flags.setEscapedIdentifier(false);
       return *this;
@@ -373,12 +404,13 @@ public:
    void dump() const;
 
    /// Dump this piece of syntax recursively.
-   void dump(RawOutStream &outStream) const;
+   void dump(raw_ostream &outStream) const;
+
 private:
    StringRef trimComment() const
    {
       assert(hasComment() && "Has no comment to trim.");
-      StringRef raw(m_text.begin() - m_commentLength, m_commentLength);
+      StringRef raw(m_lexicalText.begin() - m_commentLength, m_commentLength);
       return raw.trim();
    }
 
@@ -394,7 +426,7 @@ private:
    ValueType m_valueType;
 
    /// Text - The actual string covered by the token in the source buffer.
-   StringRef m_text;
+   StringRef m_lexicalText;
 
    /// The token value
    std::any m_value;

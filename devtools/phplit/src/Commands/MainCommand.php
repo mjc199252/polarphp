@@ -18,21 +18,20 @@ use Lit\Kernel\TestCollector;
 use Lit\Kernel\TestDispatcher;
 use Lit\Kernel\TestResultCode;
 use Lit\Utils\TestingProgressDisplay;
+use Lit\Utils\ConsoleLogger;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Logger\ConsoleLogger;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
 
-use function Lit\Utils\execute_command;
 use function Lit\Utils\detect_cpus;
 use function Lit\Utils\print_histogram;
-use function Lit\Utils\retrieve_children_pids;
 use function Lit\Utils\sort_by_incremental_cache;
+use function Lit\Utils\quote_xml_attr;
 use Lit\Utils\TestLogger;
 
 class MainCommand extends Command
@@ -78,6 +77,7 @@ class MainCommand extends Command
       $this->addOption('num-shards', null, InputOption::VALUE_OPTIONAL, 'Split testsuite into M pieces and only run one', intval(getenv('LIT_NUM_SHARDS')));
       $this->addOption('run-shard', null, InputOption::VALUE_OPTIONAL, 'Run shard #N of the testsuite', intval(getenv('LIT_RUN_SHARD')));
       // debug group
+      $this->addOption('debug', null, InputOption::VALUE_NONE, 'Debug and Experimental Options');
       $this->addOption('show-suites', null, InputOption::VALUE_NONE, 'Show discovered test suites');
       $this->addOption('show-tests', null, InputOption::VALUE_NONE, 'Show all discovered tests');
    }
@@ -143,23 +143,17 @@ class MainCommand extends Command
       $maxFailures = $input->getOption('max-failures');
       if ($maxFailures != null) {
          $maxFailures = intval($maxFailures);
-         if ($maxFailures < 0) {
+         if ($maxFailures <= 0) {
             TestLogger::fatal("Option '--max-failures' requires positive integer");
          }
          $input->setOption('max-failures', $maxFailures);
       }
-      $showOutput = false;
       $echoAllCommands = false;
-      if ($input->hasParameterOption('-v', true) || $input->hasParameterOption('--verbose=1', true) || 1 === $input->getParameterOption('--verbose', false, true)) {
-         $showOutput = true;
-      }
       if ($input->hasParameterOption('-vv', true) || $input->hasParameterOption('--verbose=2', true) || 2 === $input->getParameterOption('--verbose', false, true)) {
-         $showOutput = true;
          $echoAllCommands = true;
       }
-      $isDebug = false;
       if ($input->hasParameterOption('-vvv', true) || $input->hasParameterOption('--verbose=3', true) || 3 === $input->getParameterOption('--verbose', false, true)) {
-         $isDebug = true;
+         $echoAllCommands = true;
       }
       $quite = false;
       if ($input->hasParameterOption(['--quiet', '-q'], true)) {
@@ -182,7 +176,7 @@ class MainCommand extends Command
          $input->getOption('vg-leak'),
          $vgArg,
          $input->getOption('no-execute'),
-         $isDebug,
+         $input->getOption('debug'),
          $isWindows,
          $userParams,
          $input->getOption('config-prefix'),
@@ -202,17 +196,17 @@ class MainCommand extends Command
          $cmdValue = intval($input->getOption('timeout'));
          if ($cmdValue != $litConfig->getMaxIndividualTestTime()) {
             TestLogger::note(
-               join(array(
+               join('', array(
                   'The test suite configuration requested an individual',
                   ' test timeout of %d seconds but a timeout of %d seconds was',
                   ' requested on the command line. Forcing timeout to be %d',
                   ' seconds'
-               ), $litConfig->getMaxIndividualTestTime(), $cmdValue, $cmdValue)
+               )), $litConfig->getMaxIndividualTestTime(), $cmdValue, $cmdValue
             );
             $litConfig->setMaxIndividualTestTime($cmdValue);
          }
       }
-      $this->handleShowTestsOpt($input, $testDispatcher);
+      $this->handleShowTestsOpt($input, $testDispatcher, $output);
       // Select and order the tests.
       $numTotalTests = count($testDispatcher->getTests());
       $this->filterTests($input, $testDispatcher);
@@ -230,39 +224,51 @@ class MainCommand extends Command
       if ($actualTestNum != $numTotalTests) {
          $extra = " of $numTotalTests";
       }
-      $threads = "";
+      $workersText = "";
       if ($numWorkers == 1) {
-         $threads = 'single process';
+         $workersText = 'single process';
       } else {
-         $threads = "$numWorkers workers";
+         $workersText = "$numWorkers workers";
       }
-      $header = sprintf("-- Testing: %d%s tests, %s --\n", $actualTestNum, $extra, $threads);
+      if ($litConfig->isDebug()) {
+         $output->writeln('');
+      }
+      $header = sprintf("-- Testing: %d%s tests, %s --", $actualTestNum, $extra, $workersText);
       $progressBar = null;
       if (!$quite) {
+         $output->writeln($header);
          if ($input->getOption('succinct') && !$input->getOption('no-progress-bar')) {
             $progressBar = new ProgressBar($output, $actualTestNum);
-         } else {
-            print($header);
+            $progressBar->setOverwrite(false);
          }
       }
-      $startTime = time();
-      $progressDisplay = new TestingProgressDisplay($input->getOptions(), $actualTestNum, $progressBar);
+      $startTime = microtime(true);
+      $opts = $input->getOptions();
+      $progressDisplay = new TestingProgressDisplay($opts, $actualTestNum, $progressBar, $output);
+      $testDispatcher->setDisplay($progressDisplay);
+      $maxTime = null;
+      if ($input->getOption('max-time')) {
+         $maxTime = (int)$input->getOption('max-time');
+      }
       try {
-
+         $testDispatcher->executeTests($numWorkers, $maxTime);
       } catch (\Exception $e) {
-         TestLogger::fatal("Interrupt");
+         if ($litConfig->isDebug()) {
+            TestLogger::errorWithoutCount("catch exception:\nlocation: %s:%d", $e->getFile(), $e->getLine());
+            TestLogger::errorWithoutCount($e->getTraceAsString());
+         }
+         TestLogger::fatal("execute tests error: %s", $e->getMessage());
       }
       $progressDisplay->finish();
-      $testingTime = time() - $startTime;
+      $testingTime = microtime(true) - $startTime;
       if (!$quite) {
-         printf("Testing Time: %.2ds\n", $testingTime);
+         $output->writeln(sprintf("\nTesting Time: %.2fs", $testingTime));
       }
       // Write out the test data, if requested.
       if ($input->getOption('output')) {
          $testDispatcher->writeTestResults($testingTime, $input->getOption('output'));
       }
-      //$this->handleTestResults($input, $testDispatcher);
-      $hasFailures = false;
+      $this->handleTestResults($input, $testDispatcher, $hasFailures, $output);
       $this->handleXuintOutput($input, $testDispatcher);
       //  If we encountered any additional errors, exit abnormally.
       $numErrors = TestLogger::getNumErrors();
@@ -291,13 +297,21 @@ class MainCommand extends Command
             $userParams[$entry] = '';
          } else {
             $parts = explode('=', $entry, 2);
-            $userParams[trim($parts[0])] = trim($parts[1]);
+            $value = trim($parts[1]);
+            if (ctype_digit($value)) {
+               if (strpos($value,'.') === false) {
+                  $value = intval($value);
+               } else {
+                  $value = doubleval($value);
+               }
+            }
+            $userParams[trim($parts[0])] = $value;
          }
       }
       return $userParams;
    }
 
-   private function handleShowTestsOpt(InputInterface $input, TestDispatcher $dispatcher): void
+   private function handleShowTestsOpt(InputInterface $input, TestDispatcher $dispatcher, OutputInterface $output): void
    {
       if ($input->getOption('show-suites') || $input->getOption('show-tests')) {
          // Aggregate the tests by suite.
@@ -320,20 +334,20 @@ class MainCommand extends Command
          });
          if ($input->getOption('show-suites')) {
             // Show the suites, if requested.
-            print("-- Test Suites --\n");
+            $output->writeln('-- Test Suites --');
             foreach ($suitesAndTests as $key => $tests) {
                $testSuite = $testSuites[$key];
-               printf("  %s - %d tests\n", $testSuite->getName(), count($tests));
-               printf("    Source Root: %s\n", $testSuite->getSourceRoot());
-               printf("    Exec Root  : %s\n", $testSuite->getExecRoot());
+               $output->writeln(sprintf("  %s - %d tests", $testSuite->getName(), count($tests)));
+               $output->writeln(sprintf("    Source Root: %s", $testSuite->getSourceRoot()));
+               $output->writeln(sprintf("    Exec Root  : %s", $testSuite->getExecRoot()));
             }
          }
          //  Show the tests, if requested.
          if ($input->getOption('show-tests')) {
-            print("-- Available Tests --\n");
+            $output->writeln("-- Available Tests --");
             foreach ($suitesAndTests as $key => $tests) {
                foreach ($tests as $test) {
-                  printf("  %s\n", $test->getFullName());
+                  $output->writeln(sprintf("  %s", $test->getFullName()));
                }
             }
          }
@@ -405,7 +419,7 @@ class MainCommand extends Command
          $selectedTests = array();
          $numTests = count($tests);
          // Note: user views tests and shard numbers counting from 1.
-         $testIndexes = range($runShard, $numTests, $numShards);
+         $testIndexes = $this->range($runShard - 1, $numTests, $numShards);
          foreach ($testIndexes as $index) {
             $selectedTests[] = $tests[$index];
          }
@@ -416,7 +430,7 @@ class MainCommand extends Command
          $previewLen = min(3, count($testIndexes));
          $idxPreview = array();
          foreach (array_slice($testIndexes, 0, $previewLen) as $index) {
-            $idxPreview[] = $index;
+            $idxPreview[] = 1 + $index;
          }
          $idxPreview = join(', ', $idxPreview);
          if (count($testIndexes) > $previewLen) {
@@ -427,7 +441,16 @@ class MainCommand extends Command
       }
    }
 
-   private function handleTestResults(InputInterface $input, TestDispatcher $testDispatcher): void
+   private function range(int $start, int $end, $step = 1): array
+   {
+      $itmes = [];
+      for ($i = $start; $i < $end; $i += $step) {
+         $itmes[] = $i;
+      }
+      return $itmes;
+   }
+
+   private function handleTestResults(InputInterface $input, TestDispatcher $testDispatcher, &$hasFailures, OutputInterface $output): void
    {
       $hasFailures = false;
       $byCode = array();
@@ -435,7 +458,7 @@ class MainCommand extends Command
       foreach ($tests as $test) {
          $resultCode = $test->getResult()->getCode();
          $codeName = $resultCode->getName();
-         if (!in_array($codeName, $byCode)) {
+         if (!array_key_exists($codeName, $byCode)) {
             $byCode[$codeName] = array();
          }
          $byCode[$codeName][] = $test;
@@ -454,21 +477,24 @@ class MainCommand extends Command
       );
       foreach ($codeTitleMap as $entry) {
          list($title, $code) = $entry;
-         if (($code == TestResultCode::XPASS() && !$input->getOption('show-xfail')) ||
-             ($code == TestResultCode::UNSUPPORTED() && !$input->getOption('show-unsupported')) ||
-             ($code == TestResultCode::UNRESOLVED() && $input->getOption('max-failures') !== null)) {
+         if (($code == TestResultCode::XFAIL() && !$input->getOption('show-xfail')) ||
+            ($code == TestResultCode::UNSUPPORTED() && !$input->getOption('show-unsupported')) ||
+            ($code == TestResultCode::UNRESOLVED() && $input->getOption('max-failures') !== null)) {
             continue;
          }
-         $elements = $byCode[$code->getName()];
+         $codeName = $code->getName();
+         if (!array_key_exists($codeName, $byCode) || empty($byCode[$codeName])) {
+            continue;
+         }
+         $elements = $byCode[$codeName];
          if (empty($elements)) {
             continue;
          }
-         print(str_repeat('*', 20)."\n");
-         printf("%s (%d):\n", $title, count($elements));
+         $output->writeln(str_repeat('*', 20));
+         $output->writeln(sprintf('%s (%d):', $title, count($elements)));
          foreach ($elements as $test) {
-            printf("    %s\n", $test->getFullName());
+            $output->writeln(sprintf("    %s", $test->getFullName()));
          }
-         echo "\n";
       }
 
       if ($input->getOption('time-tests') && !empty($tests)) {
@@ -480,7 +506,7 @@ class MainCommand extends Command
          print_histogram($testTimes, 'Tests');
       }
       $codeNameMap = array(
-         ['Expected Passes    ', TestResultCode::XPASS()],
+         ['Expected Passes    ', TestResultCode::PASS()],
          ['Passes With Retry  ', TestResultCode::FLAKYPASS()],
          ['Expected Failures  ', TestResultCode::XFAIL()],
          ['Unsupported Tests  ', TestResultCode::UNSUPPORTED()],
@@ -494,20 +520,65 @@ class MainCommand extends Command
          if ($input->hasParameterOption(['--quiet', '-q'], true) && !$code->isFailure()) {
             continue;
          }
-         if (array_key_exists($code->getName(), $byCode)) {
-            $num = count($byCode[$code->getName()]);
+         $codeName = $code->getName();
+         if (array_key_exists($codeName, $byCode)) {
+            $num = count($byCode[$codeName]);
          } else {
             $num = 0;
          }
          if ($num > 0) {
-            printf("  %s: %d\n", $name, $num);
+            $output->writeln(sprintf("  %s: %d", $name, $num));
          }
       }
    }
 
    private function handleXuintOutput(InputInterface $input, TestDispatcher $testDispatcher)
    {
-
+      if (!$input->getOption('xunit-xml-output')) {
+         return;
+      }
+      // Collect the tests, indexed by test suite
+      $bySuite = [];
+      $tests = $testDispatcher->getTests();
+      foreach ($tests as $resultTest) {
+         /**
+          * @var TestCase $resultTest
+          */
+         $suite = $resultTest->getTestSuite()->getConfig()->getName();
+         if (!array_key_exists($suite, $bySuite)) {
+            $bySuite[$suite] = [
+               'passes'   => 0,
+               'failures' => 0,
+               'skipped'=> 0,
+               'tests' => []
+            ];
+         }
+         $bySuite[$suite]['tests'][] = $resultTest;
+         if ($resultTest->getResult()->getCode()->isFailure()) {
+            $bySuite[$suite]['failures'] += 1;
+         } elseif ($resultTest->getResult()->getCode() == TestResultCode::UNSUPPORTED()) {
+            $bySuite[$suite]['skipped'] += 1;
+         } else {
+            $bySuite[$suite]['passes'] += 1;
+         }
+      }
+      $xunitOutputFile = fopen($input->getOption('xunit-xml-output'),'w');
+      fwrite($xunitOutputFile, "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n");
+      fwrite($xunitOutputFile, "<testsuites>\n");
+      foreach ($bySuite as $suiteName => $suite) {
+         $safeSuiteName = quote_xml_attr(str_replace(".", "-", $suiteName));
+         fwrite($xunitOutputFile,"<testsuite name=".$safeSuiteName);
+         fwrite($xunitOutputFile," tests=\"" . strval($suite['passes'] + $suite['failures'] + $suite['skipped']) . "\"");
+         fwrite($xunitOutputFile," failures=\"" . strval($suite['failures']) . "\"");
+         fwrite($xunitOutputFile," skipped=\"" . strval($suite['skipped']) . "\">\n");
+         foreach ($suite['tests'] as $resultTest) {
+            $resultTest->writeJUnitXML($xunitOutputFile);
+            fwrite($xunitOutputFile, "\n");
+         }
+         fwrite($xunitOutputFile, "</testsuite>\n");
+      }
+      fwrite($xunitOutputFile, "</testsuites>");
+      fclose($xunitOutputFile);
    }
 
    private function prepareTempDir(Filesystem $fs)

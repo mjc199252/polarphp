@@ -74,18 +74,21 @@ set(POLAR_CMAKE_TEST_CODE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake/codes)
 set(POLAR_SYSTEM_NAME ${CMAKE_HOST_SYSTEM_NAME})
 string(TOLOWER ${POLAR_SYSTEM_NAME} POLAR_SYSTEM_NORMAL_NAME)
 set(POLAR_CONFIGURE_TEMP_DIR ${POLAR_BINARY_DIR}/conf_temp)
-set(POLAR_HEADER_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/include/php)
+set(POLAR_HEADER_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/include/polarphp)
+set(POLAR_DEVTOOLS_DIR ${CMAKE_SOURCE_DIR}/devtools)
+set(POLAR_LLVM_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llvm-project/llvm)
 
 # for test only
-set(POLAR_REGRESSION_TEST_BINARY_DIR "${POLAR_BINARY_DIR}/${CMAKE_CFG_INTDIR}/tests/bin")
-set(POLAR_REGRESSION_LIB_DIR "${POLAR_BINARY_DIR}/${CMAKE_CFG_INTDIR}/tests/lib")
 set(POLAR_UNITTEST_TEST_BINARY_DIR "${POLAR_BINARY_DIR}/${CMAKE_CFG_INTDIR}/unittests/bin")
 set(POLAR_UNITTEST_LIB_DIR "${POLAR_BINARY_DIR}/${CMAKE_CFG_INTDIR}/unittests/lib")
 
 # Add path for custom CMake modules.
 list(APPEND CMAKE_MODULE_PATH
    "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
-   "${POLAR_CMAKE_MODULES_DIR}")
+   "${POLAR_CMAKE_MODULES_DIR}"
+   )
+
+list(APPEND CMAKE_INSTALL_RPATH "${POLAR_DEPS_INSTALL_DIR}/lib")
 
 # Make a job pool for things that can't yet be distributed
 cmake_host_system_information(
@@ -165,6 +168,12 @@ if (CMAKE_BUILD_TYPE AND
    message(FATAL_ERROR "Invalid value for CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 endif()
 
+include(ProcessorCount)
+ProcessorCount(POLAR_PROCESSOR_COUNT)
+if(NOT POLAR_PROCESSOR_COUNT EQUAL 0)
+   set(POLAR_BUILD_FLAGS -j${POLAR_PROCESSOR_COUNT})
+endif()
+
 # First include general CMake utilities.
 include(PolarUtils)
 
@@ -179,6 +188,8 @@ include(GetHostTriple)
 include(TargetUtils)
 include(ProcessSources)
 include(GetHostTriple)
+include(HandleGybSources)
+include(LitUtils)
 
 set(CMAKE_C_STANDARD_REQUIRED 11)
 set(CMAKE_CXX_STANDARD_REQUIRED 17)
@@ -282,7 +293,6 @@ mark_as_advanced(POLAR_TARGET_TRIPLE_ENV)
 # devel options
 option(POLAR_DEV_BUILD_DEVTOOLS_TESTS "turn on to build tests of devtools" OFF)
 option(POLAR_DEV_BUILD_POLARPHP_TESTS "turn on to build tests of devtools" ON)
-option(POLAR_DEV_BUILD_LLVM_UNITTEST "turn on llvm support libraries unitests" OFF)
 option(POLAR_DEV_BUILD_POLARPHP_UNITTEST "turn on polarphp libraries unitests" ON)
 option(POLAR_DEV_BUILD_VMAPI_UNITEST "turn on to build unittests of vmapi" ON)
 
@@ -431,7 +441,7 @@ set(TARGET_TRIPLE "${POLAR_DEFAULT_TARGET_TRIPLE}")
 message(STATUS "polarphp host triple: ${POLAR_HOST_TRIPLE}")
 message(STATUS "polarphp default target triple: ${POLAR_DEFAULT_TARGET_TRIPLE}")
 include(ProcesseRequirePackages)
-include(HandlePolarOptions)
+include(HandleOptions)
 
 string(TIMESTAMP _buildDate "%Y-%m-%d %H:%M")
 
@@ -458,8 +468,10 @@ include_directories(${POLAR_SOURCE_DIR}
    ${POLAR_INCLUDE_DIR}
    ${POLAR_INCLUDE_DIR}/polarphp)
 
+include(ImportLLVM)
 include(ImportThirdparty)
 
+add_subdirectory(devtools)
 add_subdirectory(assets)
 add_subdirectory(include)
 add_subdirectory(src)
@@ -471,11 +483,6 @@ add_subdirectory(artifacts)
 if (POLAR_BUILD_TESTS)
    polar_check_headers(glob)
    include(LitUtils)
-   #setup some important lit path
-   set(POLAR_LIT_RUNTIME_DIR ${POLAR_BINARY_DIR}/litruntime)
-   set(POLAR_LIT_TEST_BIN_DIR ${POLAR_LIT_RUNTIME_DIR}/bin)
-   set(POLAR_LIT_TEST_LIB_DIR ${POLAR_LIT_RUNTIME_DIR}/lib)
-   add_subdirectory(devtools)
    if (POLAR_BUILD_UNITTESTS)
       add_subdirectory(unittests)
    endif()

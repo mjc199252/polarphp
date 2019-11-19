@@ -10,7 +10,7 @@ Read the English version of this document: [English](README.en_US.md)
 
 ## 为什么要做 polarphp 项目
 
-随着`Go`和`NodeJS`的强势崛起，`PHP`的市场份额逐渐被蚕食，而`PHP`官方仍然坚守在`Web`编程领域，有些东西越是想守住就越守不住。`polarphp`借鉴`NodeJS`和`Go`的相关特性对`zendVM`重新封装，去掉`PHP`一些古老弃用的特性和强`Web`属性，通过实现一套新的运行时框架`libpdk`，将`PHP`语言打造成为一门真正的通用性脚本语言，赋能`PHP`，让其拥有异步编程，协程，线程，内置的`unicode`支持，标准的文件`IO`等等特性，让`PHP`程序员不仅仅能做`web`应用，也能从容面对真正的服务端应用。`polarphp`不是一门新的语言，而是`PHP`语言的一种运行时容器。
+随着`Go`和`NodeJS`的强势崛起，`PHP`的市场份额逐渐被蚕食，而`PHP`官方仍然坚守在`Web`编程领域，有些东西越是想守住就越守不住。`polarphp`借鉴`NodeJS`和`Go`的相关特性对`zendVM`重新封装，去掉`PHP`一些古老弃用的特性和强`Web`属性，通过实现一套新的运行时框架`libpdk`，将`PHP`语言打造成为一门真正的通用性脚本语言，赋能`PHP`，让其拥有异步编程，协程，线程，内置的`unicode`支持，标准的文件`IO`等等特性，让`PHP`程序员不仅仅能做`web`应用，也能从容面对真正的服务端应用。`polarphp`不是一门新的语言，而是`PHP`语言的除官方外的一个新的编译器及其运行时。
 
 ## 主要特性
 
@@ -24,16 +24,19 @@ Read the English version of this document: [English](README.en_US.md)
 
 因为开发资源有限，开发计划暂定如下：
 
-1. 使用`cmake`对`zend VM`进行编译，生成`polarphp`定制版的`PHP`语言虚拟机
+1. 实现自己的`PHP`编译器前端
 2. 语言支持项目，语言测试框架，移植`LLVM`项目的`lit`测试框架
-3. 实现`polarphp`驱动程序，实现从命令行执行`PHP`代码
-4. 对`polarphp`虚拟机进行回归测试，暂定跑通`PHP`的语言虚拟机相关回归测试
-5. 实现`polarphp`的内置函数
-6. 发布核心虚拟机的`docker`镜像
-7. 整合`libpdk`运行时框架
-8. 实现人性化安装，尽量以最少的步骤进行`polarphp`的安装
-9. 实现包管理器
-10. 实现语言配套小工具，比如文档生成工具等等
+3. 使用`phplit`回归测试框架完成对`polarphp`编译器前端的测试
+4. 定义`polarvm`的指令集，完成虚拟机的基础架构
+5. 实现完整的虚拟机规范的指令集
+6. 完成`polarphp` AST 到指令集的编译，暂时不定义 IR 层
+7. 使用`phplit`对语言结构到指令集所有编译模块的测试
+8. 实现一个最小化的运行时，暂时使用`PHP`内置的`GC`
+9. 实现`PHP`语言标准库`libpdk`的底层架构 (`cpp`部分)
+10. 实现人性化安装，尽量以最少的步骤进行`polarphp`的安装
+11. 实现包管理器
+12. 实现语言配套小工具，比如文档生成工具等等
+13. 发动社区，实现一个功能完备的`PHP`标准库 (使用`PHP`代码配合`libpdk`底层支持进行实现)
 
 ## 开始体验
 
@@ -148,7 +151,7 @@ patch version: 1
 
 ## 特别感谢
 <!--特别感谢开始-->
-<table>
+<table height="100">
   <tbody>
     <tr>
       <td align="center" valign="middle">

@@ -9,17 +9,18 @@
 #
 # Created by polarboy on 2018/11/19.
 
-set(REGRESSION_TEST_DEFS "")
-
-list(APPEND REGRESSION_TEST_DEFS "LIT_TEST_BIN=\"${POLAR_RUNTIME_OUTPUT_INTDIR}${DIR_SEPARATOR}lit\"")
-list(APPEND REGRESSION_TEST_DEFS "POLAR_RUNTIME_OUTPUT_INTDIR=\"${POLAR_RUNTIME_OUTPUT_INTDIR}\"")
-
 if (POLAR_DEV_BUILD_DEVTOOLS_TESTS)
-   add_subdirectory(devtools)
+   polar_add_lit_testsuite(check-devtools "devtools lit tests"
+      ${CMAKE_CURRENT_SOURCE_DIR}/devtools/filechecker
+      ARGS -j ${POLAR_PROCESSOR_COUNT}
+      )
 endif()
 
 if (POLAR_DEV_BUILD_POLARPHP_TESTS)
-   add_subdirectory(polarphp/polarphpmock)
-   add_subdirectory(polarphp/vmapi)
+   polar_add_lit_testsuite(check-parser "polarphp parser tests"
+      ${CMAKE_CURRENT_SOURCE_DIR}/parser
+      DEPENDS PolarSyntax PolarParser
+      ARGS -j ${POLAR_PROCESSOR_COUNT}
+      )
 endif()
 

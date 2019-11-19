@@ -15,7 +15,7 @@ set(POLAR_PARSER_SOURCES)
 
 polar_collect_files(
    TYPE_BOTH
-   DIR ast
+   DIR ${POLAR_SOURCE_ROOT_DIR}/ast
    OUTPUT_VAR POLAR_AST_SOURCES)
 polar_merge_list(POLAR_PARSER_SOURCES POLAR_AST_SOURCES)
 
@@ -30,6 +30,7 @@ polar_merge_list(POLAR_PARSER_SOURCES POLAR_HEADERS)
 # generate yyparser source files
 
 set(POLAR_PARSER_INCLUDE_DIR ${POLAR_MAIN_INCLUDE_DIR}/polarphp/parser)
+set(POLAR_PARSER_BINARY_INCLUDE_DIR ${POLAR_INCLUDE_DIR}/polarphp/parser)
 set(POLAR_PARSER_SRC_DIR ${POLAR_SOURCE_DIR}/src/parser)
 
 set(POLAR_GENERATED_LEX_IMPL_FILE ${POLAR_PARSER_SRC_DIR}/internal/YYLexer.cpp)
@@ -45,15 +46,12 @@ re2c_target(NAME PolarRe2cLangLexer
    INPUT ${POLAR_PARSER_INCLUDE_DIR}/LexicalRule.l
    OPTIONS --no-generation-date --case-inverted -Wundefined-control-flow -cbdFt ${POLAR_GENERATED_LEX_HEADER_FILE})
 
-add_custom_target(LangGrammer
-   SOURCES ${POLAR_GRAMMER_FILE})
-
 add_custom_command(OUTPUT ${POLAR_GENERATED_PARSER_IMPL_FILE}
    COMMAND ${BISON_EXECUTABLE}
    "-d" ${POLAR_GRAMMER_FILE}
    "-o" ${POLAR_GENERATED_PARSER_IMPL_FILE}
    "--defines=${POLAR_GENERATED_PARSER_HEADER_FILE}"
-   DEPENDS ${POLAR_GRAMMER_FILE}
+   DEPENDS ${POLAR_GRAMMER_FILE} polar-parser-generated-headers
    )
 
 list(APPEND POLAR_PARSER_SOURCES

@@ -107,14 +107,17 @@ polar_merge_list(POLAR_HEADERS POLAR_SYNTAX_HEADERS)
 polar_merge_list(POLAR_HEADERS POLAR_UTILS_HEADERS)
 polar_merge_list(POLAR_HEADERS POLAR_RUNTIME_HEADERS)
 
-configure_file(global/PolarVersion.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/polarphp/global/PolarVersion.h
+add_subdirectory(syntax)
+add_subdirectory(parser)
+
+configure_file(global/PolarVersion.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/global/PolarVersion.h
    @ONLY)
-configure_file(global/BuildDefs.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/polarphp/global/BuildDefs.h
+configure_file(global/BuildDefs.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/global/BuildDefs.h
    @ONLY)
 
-configure_file(global/Config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/polarphp/global/Config.h @ONLY)
-configure_file(global/AbiBreaking.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/polarphp/global/AbiBreaking.h @ONLY)
-list(APPEND POLAR_HEADERS ${CMAKE_CURRENT_BINARY_DIR}/polarphp/global/Config.h)
-list(APPEND POLAR_HEADERS ${CMAKE_CURRENT_BINARY_DIR}/polarphp/global/AbiBreaking.h)
+configure_file(global/Config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/global/Config.h @ONLY)
+configure_file(global/AbiBreaking.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/global/AbiBreaking.h @ONLY)
+list(APPEND POLAR_HEADERS ${CMAKE_CURRENT_BINARY_DIR}/global/Config.h)
+list(APPEND POLAR_HEADERS ${CMAKE_CURRENT_BINARY_DIR}/global/AbiBreaking.h)
 
 set(POLAR_HEADERS ${POLAR_HEADERS} PARENT_SCOPE)

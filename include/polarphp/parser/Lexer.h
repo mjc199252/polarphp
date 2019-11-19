@@ -12,14 +12,14 @@
 #ifndef POLARPHP_PARSER_LEXER_H
 #define POLARPHP_PARSER_LEXER_H
 
-#include "polarphp/basic/adt/StringExtras.h"
+#include "polarphp/basic/StringExtras.h"
 #include "polarphp/ast/DiagnosticEngine.h"
 #include "polarphp/parser/SourceLoc.h"
 #include "polarphp/parser/SourceMgr.h"
 #include "polarphp/parser/Token.h"
 #include "polarphp/parser/ParsedTrivia.h"
 #include "polarphp/parser/LexerState.h"
-#include "polarphp/utils/SaveAndRestore.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "polarphp/parser/internal/YYLexerDefs.h"
 #include "polarphp/parser/LexerFlags.h"
 #include "polarphp/kernel/LangOptions.h"
@@ -43,12 +43,6 @@ using polar::kernel::LangOptions;
 union ParserStackElement;
 
 class Parser;
-
-/// Given a pointer to the starting byte of a UTF8 character, validate it and
-/// advance the lexer past it.  This returns the encoded character or ~0U if
-/// the encoding is invalid.
-///
-uint32_t validate_utf8_character_and_advance(const unsigned char *&ptr, const unsigned char *end);
 
 class Lexer final
 {
@@ -205,7 +199,7 @@ public:
       assert(LexerState.isValid());
       m_yyCursor = getBufferPtrForSourceLoc(LexerState.m_loc);
       // Don't reemit diagnostics while readvancing the lexer.
-      polar::utils::SaveAndRestore<DiagnosticEngine *> diag(m_diags, enableDiagnostics ? m_diags : nullptr);
+      llvm::SaveAndRestore<DiagnosticEngine *> diag(m_diags, enableDiagnostics ? m_diags : nullptr);
       lexImpl();
       // Restore Trivia.
       if (m_triviaRetention == TriviaRetentionMode::WithTrivia) {
@@ -252,7 +246,7 @@ public:
    /// \param SR The source range
    static CharSourceRange getCharSourceRangeFromSourceRange(const SourceManager &sourceMgr, const SourceRange &range)
    {
-      return CharSourceRange(sourceMgr, range.m_start, getLocForEndOfToken(sourceMgr, range.m_end));
+      return CharSourceRange(sourceMgr, range.getStart(), getLocForEndOfToken(sourceMgr, range.getEnd()));
    }
 
    /// Return the start location of the token that the offset in the given buffer
@@ -280,44 +274,18 @@ public:
    /// given token, which is the location of the start of the next line.
    static SourceLoc getLocForEndOfLine(SourceManager &sourceMgr, SourceLoc loc);
 
-   /// Retrieve the string used to indent the line that contains the given
-   /// source location.
-   ///
-   /// If \c ExtraIndentation is not null, it will be set to an appropriate
-   /// additional intendation for adding code in a smaller scope "within" \c Loc.
-   static StringRef getIndentationForLine(SourceManager &sourceMgr, SourceLoc loc,
-                                          StringRef *extraIndentation = nullptr);
-
-   /// Determines if the given string is a valid non-operator
-   /// identifier, without escaping characters.
-   static bool isIdentifier(StringRef identifier);
-
-   /// Determines if the given string is a valid operator identifier,
-   /// without escaping characters.
-   static bool isOperator(StringRef string);
-
    SourceLoc getLocForStartOfBuffer() const
    {
-      return SourceLoc(polar::utils::SMLocation::getFromPointer(reinterpret_cast<const char *>(m_bufferStart)));
+      return SourceLoc(SMLoc::getFromPointer(reinterpret_cast<const char *>(m_bufferStart)));
    }
 
    static SourceLoc getSourceLoc(const unsigned char *loc)
    {
-      return SourceLoc(polar::utils::SMLocation::getFromPointer(reinterpret_cast<const char *>(loc)));
+      return SourceLoc(SMLoc::getFromPointer(reinterpret_cast<const char *>(loc)));
    }
 
    /// Get the token that starts at the given location.
    Token getTokenAt(SourceLoc Loc);
-
-   void incLineNumber(int count = 1)
-   {
-      m_lineNumber += count;
-   }
-
-   int getLineNumber()
-   {
-      return m_lineNumber;
-   }
 
    unsigned int getYYLength()
    {
@@ -480,11 +448,41 @@ private:
       return diagnose(loc, Diagnostic(diagId, std::forward<ArgTypes>(args)...));
    }
 
+   void formToken(TokenKindType kind)
+   {
+      formToken(kind, getYYText());
+   }
+
    void formToken(TokenKindType kind, const unsigned char *tokenStart);
+   void formEscapedIdentifierToken()
+   {
+      formEscapedIdentifierToken(getYYText());
+   }
    void formEscapedIdentifierToken(const unsigned char *tokenStart);
+
+   void formVariableToken()
+   {
+      formVariableToken(getYYText());
+   }
+
    void formVariableToken(const unsigned char *tokenStart);
+
+   void formIdentifierToken()
+   {
+      formIdentifierToken(getYYText());
+   }
    void formIdentifierToken(const unsigned char *tokenStart);
+
+   void formStringVariableToken()
+   {
+      formStringVariableToken(getYYText());
+   }
    void formStringVariableToken(const unsigned char *tokenStart);
+
+   void formErrorToken()
+   {
+      formErrorToken(getYYText());
+   }
    void formErrorToken(const unsigned char *tokenStart);
 
    /// Advance to the end of the line.
@@ -509,19 +507,15 @@ private:
    void lexNowdocBody();
    void lexHereAndNowDocEnd();
    void lexTrivia(ParsedTrivia &trivia, bool isForTrailingTrivia);
-   void lexEscapedIdentifier();
-
    /// Returns it should be tokenize.
    bool lexUnknown(bool emitDiagnosticsIfToken);
+   void lexEscapedIdentifier();
    NullCharacterKind getNullCharacterKind(const unsigned char *ptr) const;
-
    bool nextLineHasHeredocEndMarker();
-   bool isFoundHeredocEndMarker(std::shared_ptr<HereDocLabel> label) const
+   bool isFoundHeredocEndMarker(std::shared_ptr<HereDocLabel> label) const;
+   YYLexerCondType getYYCondition() const
    {
-      long int labelLength = label->name.size();
-      return isLabelStart(*m_yyCursor) &&
-            (labelLength < m_artificialEof - m_yyCursor) &&
-            (StringRef(reinterpret_cast<const char *>(m_yyCursor), labelLength) == label->name);
+      return m_yyCondition;
    }
 
    bool isLabelStart(unsigned char c) const
@@ -544,8 +538,8 @@ private:
    friend void internal::yy_token_lex(Lexer &lexer);
    friend bool internal::strip_multiline_string_indentation(Lexer &lexer, std::string &str, int indentation, bool usingSpaces,
                                                             bool newlineAtStart, bool newlineAtEnd);
-   friend bool internal::convert_double_quote_str_escape_sequences(std::string &filteredStr, char quoteType, const char *iter,
-                                                                   const char *endMark, Lexer &lexer);
+   friend bool internal::convert_double_quote_str_escape_sequences(std::string &filteredStr, char quoteType, std::string::iterator iter,
+                                                                   std::string::iterator endMark, Lexer &lexer);
 private:
    LexerFlags m_flags;
    const LangOptions &m_langOpts;
@@ -586,11 +580,10 @@ private:
    /// The token semantic value
    ParserSemantic *m_valueContainer = nullptr;
 
-   YYLexerCondType m_yyCondition = COND_NAME(ST_IN_SCRIPTING);
+   YYLexerCondType m_yyCondition = COND_NAME(INITIAL);
    std::size_t m_heredocIndentation;
    /// current token length
    std::size_t m_yyLength;
-   std::size_t m_lineNumber;
 
    LexicalEventHandler m_eventHandler = nullptr;
    LexicalExceptionHandler m_lexicalExceptionHandler = nullptr;
@@ -616,22 +609,6 @@ private:
    std::stack<std::shared_ptr<HereDocLabel>> m_heredocLabelStack;
    std::stack<LexerState> m_yyStateStack;
 };
-
-/// Given an ordered token \param Array , get the iterator pointing to the first
-/// token that is not before \param Loc .
-template<typename ArrayTy, typename Iterator = typename ArrayTy::iterator>
-Iterator token_lower_bound(ArrayTy &array, SourceLoc loc)
-{
-   return std::lower_bound(array.begin(), array.end(), loc,
-                           [](const Token &t, SourceLoc l) {
-      return t.getLoc().getOpaquePointerValue() < l.getOpaquePointerValue();
-   });
-}
-
-/// Given an ordered token array \param AllTokens , get the slice of the array
-/// where front() locates at \param StartLoc and back() locates at \param EndLoc .
-ArrayRef<Token> slice_token_array(ArrayRef<Token> allTokens, SourceLoc startLoc,
-                                  SourceLoc endLoc);
 
 template <typename DF>
 void tokenize(const LangOptions &langOpts, const SourceManager &sourceMgr,

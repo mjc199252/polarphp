@@ -1,5 +1,4 @@
 <?php
-
 use Lit\Format\GoogleTestFormat;
 use Lit\Kernel\LitConfig;
 use Lit\Kernel\TestingConfig;

@@ -1,4 +1,7 @@
 {
+    "chrisboulton/php-diff": {
+        "version": "master"
+    },
     "psr/cache": {
         "version": "1.0.1"
     },

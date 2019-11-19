@@ -1,7 +1,5 @@
 //===--- RawSyntax.h - Swift raw Syntax Interface ---------------*- ch++ -*-===//
 //
-// This source file is part of the Swift.org open source project
-//
 // Copyright (c) 2014 - 2017 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
@@ -9,7 +7,17 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+// This source file is part of the polarphp.org open source project
 //
+// Copyright (c) 2017 - 2019 polarphp software foundation
+// Copyright (c) 2017 - 2019 zzu_softboy <zzu_softboy@163.com>
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://polarphp.org/LICENSE.txt for license information
+// See https://polarphp.org/CONTRIBUTORS.txt for the list of polarphp project authors
+//
+// Created by polarboy on 2019/05/08.
+//===----------------------------------------------------------------------===//
 // This file defines the RawSyntax type.
 //
 // These are the "backbone or "skeleton" of the Syntax tree, providing
@@ -29,36 +37,29 @@
 #ifndef POLARPHP_SYNTAX_RAWSYNTAX_H
 #define POLARPHP_SYNTAX_RAWSYNTAX_H
 
+#include "llvm/ADT/FoldingSet.h"
+#include "llvm/ADT/IntrusiveRefCntPtr.h"
+#include "llvm/ADT/PointerUnion.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/TrailingObjects.h"
+#include "llvm/Support/raw_ostream.h"
+
 #include "polarphp/basic/InlineBitfield.h"
 #include "polarphp/syntax/References.h"
 #include "polarphp/syntax/SyntaxArena.h"
 #include "polarphp/syntax/SyntaxKind.h"
 #include "polarphp/syntax/TokenKinds.h"
 #include "polarphp/syntax/Trivia.h"
-#include "polarphp/basic/adt/FoldingSet.h"
-#include "polarphp/basic/adt/IntrusiveRefCountPtr.h"
-#include "polarphp/basic/adt/PointerUnion.h"
-#include "polarphp/basic/adt/OwnedString.h"
-#include "polarphp/utils/Casting.h"
-#include "polarphp/utils/TrailingObjects.h"
-#include "polarphp/utils/RawOutStream.h"
+#include "polarphp/basic/OwnedString.h"
 
 #include <vector>
 #include <atomic>
 
 #ifndef NDEBUG
-#define syntax_assert_child_kind(raw, cursorName, choices)                   \
+#define syntax_assert_child_kind(raw, cursorName, expectedKind)              \
    do {                                                                      \
-      if (auto &__child = raw->getChild(cursorName)) {                       \
-         bool __found = false;                                               \
-         std::string errorMsg;                                               \
-         if (choices.find(__child->getKind()) != choices.end()) {            \
-            __found = true;                                                  \
-         } else {                                                            \
-            errorMsg = "invalid syntax node type supplied for " #cursorName  \
-            ", please check";                                                \
-         }                                                                   \
-         assert(__found && errorMsg.c_str());                                \
+      if (auto &__child = raw->getChild(cursorName)) {                       \                                                        \
+         assert(__child->getKind() == expectedKind)                          \
       }                                                                      \
    } while (false)
 #else
@@ -66,24 +67,21 @@
 #endif
 
 #ifndef NDEBUG
-#define syntax_assert_child_token(raw, cursorName, choices)                    \
+#define syntax_assert_child_token(raw, cursorName, ...)                        \
    do {                                                                        \
       bool __found = false;                                                    \
       std::string errorMsg;                                                    \
       if (auto &__token = raw->getChild(Cursor::cursorName)) {                 \
          assert(__token->isToken());                                           \
          if (__token->isPresent()) {                                           \
-            if (choices.find(__token->getTokenKind()) != choices.end()) {      \
-               __found = true;                                                 \
-            } else {                                                           \
-               errorMsg = "invalid token supplied for " #cursorName            \
-               ", expected one of {";                                          \
-               for (TokenKindType kind : choices) {                            \
-                  errorMsg += get_token_text(kind).getStr();                   \
+            for (auto tokenKind : {__VA_ARGS__}) {                             \
+               if (__token->getTokenKind() == tokenKind) {                     \
+                  __found = true;                                              \
+                  break;                                                       \
                }                                                               \
-               errorMsg += "}";                                                \
             }                                                                  \
-            assert(__found && errorMsg.c_str());                               \
+            assert(__found && "invalid token supplied for " #cursorName        \
+                              ", expected one of {" #__VA_ARGS__ "}");         \
          }                                                                     \
       }                                                                        \
    } while (false)
@@ -117,25 +115,21 @@
 #ifndef NDEBUG
 #define syntax_assert_token_is(token, kind, text)                               \
    do {                                                                         \
-   assert(token.getTokenKind() == kind);                                        \
-   assert(token.getText() == text);                                             \
+      assert(token.getTokenKind() == kind);                                     \
+      assert(token.getText() == text);                                          \
    } while (false)
 #else
 #define syntax_assert_token_is(token, kind, text)
 #endif
 
-#define make_missing_token(token) \
-   RawSyntax::missing(TokenKindType::token, \
-                     OwnedString::makeUnowned(get_token_text(TokenKindType::token)))
-
 namespace polar::syntax {
 
-using polar::utils::RawOutStream;
-using polar::utils::TrailingObjects;
-using polar::basic::StringRef;
+using llvm::raw_ostream;
+using llvm::TrailingObjects;
+using llvm::StringRef;
+using llvm::ArrayRef;
+using llvm::FoldingSetNodeID;
 using polar::basic::OwnedString;
-using polar::basic::ArrayRef;
-using polar::basic::FoldingSetNodeId;
 
 class SyntaxArena;
 using CursorIndex = size_t;
@@ -221,11 +215,12 @@ public:
    }
 
    /// Print the line and column as "l:c" to the given output stream.
-   void printLineAndColumn(RawOutStream &outStream) const;
+   void printLineAndColumn(raw_ostream &outStream) const;
 
    /// Dump a description of this position to the given output stream
    /// for debugging.
-   void dump(RawOutStream &outStream = polar::utils::error_stream()) const;
+   void dump(raw_ostream &outStream = llvm::errs()) const;
+
 private:
    uintptr_t m_offset = 0;
    uint32_t m_line = 1;
@@ -259,7 +254,7 @@ using SyntaxNodeId = unsigned;
 /// This is implementation detail - do not expose it in public API.
 class RawSyntax final
       : private TrailingObjects<RawSyntax, RefCountPtr<RawSyntax>, OwnedString, std::int64_t, double,
-      TriviaPiece>
+                                TriviaPiece>
 {
 public:
    ~RawSyntax();
@@ -270,6 +265,11 @@ public:
    void retain() const
    {
       m_refCount.fetch_add(1, std::memory_order_relaxed);
+   }
+
+   void Retain() const
+   {
+      retain();
    }
 
    void release() const
@@ -287,6 +287,11 @@ public:
             delete this;
          }
       }
+   }
+
+   void Release() const
+   {
+      release();
    }
 
    /// \name Factory methods.
@@ -580,15 +585,15 @@ public:
    bool accumulateLeadingTrivia(AbsolutePosition &pos) const;
 
    /// Print this piece of syntax recursively.
-   void print(RawOutStream &outStream, SyntaxPrintOptions opts) const;
+   void print(raw_ostream &outStream, SyntaxPrintOptions opts) const;
 
    /// Dump this piece of syntax recursively for debugging or testing.
    void dump() const;
 
    /// Dump this piece of syntax recursively.
-   void dump(RawOutStream &outStream, unsigned indent = 0) const;
+   void dump(raw_ostream &outStream, unsigned indent = 0) const;
 
-   static void profile(FoldingSetNodeId &id, TokenKindType tokenKind, OwnedString text,
+   static void profile(FoldingSetNodeID &id, TokenKindType tokenKind, OwnedString text,
                        ArrayRef<TriviaPiece> leadingTrivia,
                        ArrayRef<TriviaPiece> trailingTrivia);
 private:
@@ -648,9 +653,19 @@ private:
       return isToken() ? 0 : m_bits.layout.numChildren;
    }
 
+   size_t numTrailingObjects(OverloadToken<RefCountPtr<RawSyntax>> token) const
+   {
+      return getNumTrailingObjects(token);
+   }
+
    size_t getNumTrailingObjects(OverloadToken<OwnedString>) const
    {
       return isToken() ? 1 : 0;
+   }
+
+   size_t numTrailingObjects(OverloadToken<OwnedString> token) const
+   {
+      return getNumTrailingObjects(token);
    }
 
    size_t getNumTrailingObjects(OverloadToken<double>) const
@@ -658,9 +673,19 @@ private:
       return isToken() ? 1 : 0;
    }
 
+   size_t numTrailingObjects(OverloadToken<double> token) const
+   {
+      return getNumTrailingObjects(token);
+   }
+
    size_t getNumTrailingObjects(OverloadToken<std::int64_t>) const
    {
       return isToken() ? 1 : 0;
+   }
+
+   size_t numTrailingObjects(OverloadToken<std::int64_t> token) const
+   {
+      return getNumTrailingObjects(token);
    }
 
    size_t getNumTrailingObjects(OverloadToken<TriviaPiece>) const
@@ -668,6 +693,11 @@ private:
       return isToken()
             ? m_bits.token.numLeadingTrivia + m_bits.token.numTrailingTrivia
             : 0;
+   }
+
+   size_t numTrailingObjects(OverloadToken<TriviaPiece> token) const
+   {
+      return getNumTrailingObjects(token);
    }
 
    /// Constructor for creating layout nodes.
@@ -716,7 +746,7 @@ private:
 } // polar::syntax
 
 namespace polar::utils {
-RawOutStream &operator<<(RawOutStream &outStream, polar::syntax::AbsolutePosition pos);
+raw_ostream &operator<<(raw_ostream &outStream, polar::syntax::AbsolutePosition pos);
 } // polar::utils
 
 #endif // POLARPHP_SYNTAX_RAWSYNTAX_H

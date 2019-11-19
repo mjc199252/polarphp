@@ -15,18 +15,9 @@ add_custom_target(PolarCompilerTests)
 set_target_properties(PolarCompilerTests PROPERTIES FOLDER "PolarCompilerTests")
 
 add_subdirectory(support)
-
-if (POLAR_DEV_BUILD_LLVM_UNITTEST)
-   add_subdirectory(basic/adt)
-   add_subdirectory(utils)
-endif()
+add_subdirectory(utils)
 
 if (POLAR_DEV_BUILD_POLARPHP_UNITTEST)
    add_subdirectory(syntax)
    add_subdirectory(parser)
 endif()
-
-if (POLAR_DEV_BUILD_VMAPI_UNITEST)
-   add_subdirectory(vm)
-endif()
-

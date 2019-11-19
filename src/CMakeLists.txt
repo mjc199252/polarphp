@@ -9,10 +9,14 @@
 #
 # Created by polarboy on 2018/08/26.
 
+set(POLAR_SOURCE_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_subdirectory(bytecode)
 add_subdirectory(codegen)
 add_subdirectory(global)
 add_subdirectory(basic)
+add_subdirectory(pil)
+add_subdirectory(irgen)
 add_subdirectory(markup)
 add_subdirectory(kernel)
 add_subdirectory(utils)

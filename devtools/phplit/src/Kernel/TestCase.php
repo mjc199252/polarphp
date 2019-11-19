@@ -11,6 +11,12 @@
 // Created by polarboy on 2019/10/10.
 
 namespace Lit\Kernel;
+
+use Lit\Exception\ValueException;
+use Lit\Utils\BooleanExpr;
+use function Lit\Utils\escape_xml_attr;
+use function Lit\Utils\quote_xml_attr;
+
 /**
  * Test - Information on a single test instance.
  *
@@ -23,7 +29,7 @@ class TestCase
     */
    private $testSuite;
    /**
-    * @var array $pathInSuite
+    * @var string $pathInSuite
     */
    private $pathInSuite;
 
@@ -116,12 +122,12 @@ class TestCase
 
    public function getSourcePath() : string
    {
-      $this->testSuite->getSourcePath($this->pathInSuite);
+      return $this->testSuite->getSourcePath($this->pathInSuite);
    }
 
    public function getExecPath() : string
    {
-      $this->testSuite->getExecPath($this->pathInSuite);
+      return $this->testSuite->getExecPath($this->pathInSuite);
    }
 
    /**
@@ -182,7 +188,7 @@ class TestCase
             $featuresMinusLimits[] = $feature;
          }
       }
-      if (empty(getMissingRequiredFeaturesFromList($featuresMinusLimits))) {
+      if (empty($this->getMissingRequiredFeaturesFromList($featuresMinusLimits))) {
          return false;
       }
       return true;
@@ -222,7 +228,7 @@ class TestCase
     *
     * @return array
     */
-   public function getUnsupportedFeatures() : array
+   public function getUnsupportedFeatures(): array
    {
       $features = $this->config->getAvailableFeatures();
       $triple = $this->testSuite->getConfig()->getExtraConfig('target_triple', '');
@@ -233,6 +239,7 @@ class TestCase
                $evalResult[] = $item;
             }
          }
+         return $evalResult;
       } catch (ValueException $e) {
          throw new ValueException(sprintf("Error in UNSUPPORTED list:\n%s", $e->getMessage()));
       }
@@ -257,40 +264,39 @@ class TestCase
     */
    public function writeJUnitXML($file)
    {
-      $testName = htmlspecialchars($this->pathInSuite[-1], ENT_XML1 | ENT_COMPAT, 'UTF-8');
+      $testName = htmlspecialchars($this->pathInSuite[count($this->pathInSuite) - 1], ENT_XML1 | ENT_COMPAT, 'UTF-8');
       $testPath = array_slice($this->pathInSuite, 0, -1);
       $safeTestPath = array();
       foreach ($testPath as $path) {
-         $safeTestPath[] = str_replace($path, '.', '_');
+         $safeTestPath[] = str_replace('.', '_', $path);
       }
-      $safeName = str_replace($this->testSuite->getName(), '.', '_');
+      $safeName = str_replace('.', '_', $this->testSuite->getName());
       if ($safeTestPath) {
          $className = $safeName .'.' .implode('/', $safeTestPath);
       } else {
          $className = $safeName . '.' . $safeName;
       }
-      $className = htmlspecialchars($className, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+      $className = escape_xml_attr($className);
       $elapsedTime = $this->result->getElapsed();
-      $testcaseTemplate = '<testcase classname={class_name} name={test_name} time="{time:.2f}"';
-      $testcaseXml = str_replace($testcaseTemplate,
-         array('class_name', 'test_name', 'time'),
-         array($className, $testName, $elapsedTime));
+      $testcaseTemplate = '<testcase classname=%s name=%s time=%s';
+      $testcaseXml = sprintf($testcaseTemplate, quote_xml_attr($className),
+         quote_xml_attr($testName), quote_xml_attr(sprintf("%.2f", $elapsedTime)));
       fwrite($file, $testcaseXml);
       if ($this->result->getCode()->isFailure()) {
          fwrite($file,">\n\t<failure ><![CDATA[");
          $output = $this->result->getOutput();
          // In the unlikely case that the output contains the CDATA terminator
          // we wrap it by creating a new CDATA block
-         fwrite($file, str_replace($output, "]]>","]]]]><![CDATA[>"));
+         fwrite($file, str_replace("]]>","]]]]><![CDATA[>", $output));
          fwrite($file, "]]></failure>\n</testcase>");
-      } else if ($this->result->getCode() === TestResultCode::UNRESOLVED()) {
+      } else if ($this->result->getCode() === TestResultCode::UNSUPPORTED()) {
          $unsupportedFeatures = $this->getMissingRequiredFeatures();
          if (!empty($unsupportedFeatures)) {
             $skipMessage = "Skipping because of: " . join(',', $unsupportedFeatures);
          } else {
             $skipMessage = 'Skipping because of configuration.';
          }
-         fwrite($file, sprintf(">\n\t<skipped message=%s />\n</testcase>\n", htmlspecialchars($skipMessage, ENT_XML1 | ENT_COMPAT, 'UTF-8')));
+         fwrite($file, sprintf(">\n\t<skipped message=%s />\n</testcase>\n", quote_xml_attr($skipMessage)));
       } else {
          fwrite($file, "/>");
       }
@@ -397,18 +403,18 @@ class TestCase
    }
 
    /**
-    * @return bool
+    * @return array
     */
-   public function isUnsupported(): bool
+   public function getUnsupported(): array
    {
       return $this->unsupported;
    }
 
    /**
-    * @param bool $unsupported
+    * @param array $unsupported
     * @return TestCase
     */
-   public function setUnsupported(bool $unsupported): TestCase
+   public function setUnsupported(array $unsupported): TestCase
    {
       $this->unsupported = $unsupported;
       return $this;
@@ -438,5 +444,10 @@ class TestCase
    {
       $this->manualSpecifiedSourcePath = $manualSpecifiedSourcePath;
       return $this;
+   }
+
+   public function hasResult(): bool
+   {
+      return $this->result != null;
    }
 }

@@ -1,0 +1,73 @@
+#!/usr/bin/env php
+<?php
+
+use Gyb\Kernel\Kernel;
+use Gyb\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Debug\Debug;
+
+if (false === in_array(\PHP_SAPI, ['cli', 'phpdbg', 'embed'], true)) {
+   echo 'Warning: The console should be invoked via the CLI version of PHP, not the '.\PHP_SAPI.' SAPI'.\PHP_EOL;
+}
+
+define('OS_WINDOWS', 'Windows');
+define('OS_BSD', 'BSD');
+define('OS_MACOS', 'Darwin');
+define('OS_SOLARIS', 'Solaris');
+define('OS_LINUX', 'Linux');
+define('GYB_TEMP_PREFIX', 'polar_gyb_');
+set_time_limit(0);
+$script = $_SERVER['SCRIPT_NAME'];
+define('GYB_SCRIPT', $script);
+
+// TODO work around for windows
+if ($script[0] == '/') {
+   define('GYB_ROOT_DIR', dirname($_SERVER['SCRIPT_NAME']));
+} else {
+   define('GYB_ROOT_DIR', dirname(getcwd().'/'.$_SERVER['SCRIPT_NAME']));
+}
+
+define('GYB_VAR_DIR', GYB_ROOT_DIR.DIRECTORY_SEPARATOR.'var');
+define('GYB_TEMP_DIR', GYB_VAR_DIR.DIRECTORY_SEPARATOR.'temp');
+
+define('GYB_SYNTAX_DEFINITION_DIR', implode(DIRECTORY_SEPARATOR, [
+   GYB_ROOT_DIR,
+   'src',
+   'Definition'
+]));
+
+require GYB_ROOT_DIR .'/vendor/autoload.php';
+
+$files = array(
+   "src/Utils/UtilFuncs.php"
+);
+
+foreach ($files as $file) {
+   include_once GYB_ROOT_DIR .DIRECTORY_SEPARATOR . $file;
+}
+
+if (!class_exists(Application::class)) {
+   throw new RuntimeException('You need to add "symfony/framework-bundle" as a Composer dependency.');
+}
+
+$input = new ArgvInput();
+if (null !== $env = $input->getParameterOption(['--env', '-e'], null, true)) {
+   putenv('APP_ENV='.$_SERVER['APP_ENV'] = $_ENV['APP_ENV'] = $env);
+}
+
+if ($input->hasParameterOption('--no-debug', true)) {
+   putenv('APP_DEBUG='.$_SERVER['APP_DEBUG'] = $_ENV['APP_DEBUG'] = '0');
+}
+
+require GYB_ROOT_DIR.'/bootstrap.php';
+
+if ($_SERVER['APP_DEBUG']) {
+   umask(0000);
+   if (class_exists(Debug::class)) {
+      Debug::enable();
+   }
+}
+
+$kernel = new Kernel($_SERVER['APP_ENV'], (bool) $_SERVER['APP_DEBUG']);
+$application = new Application($kernel);
+$application->run($input);

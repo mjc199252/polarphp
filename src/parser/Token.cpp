@@ -10,7 +10,7 @@
 // Created by polarboy on 2019/07/09.
 
 #include "polarphp/parser/Token.h"
-#include "polarphp/utils/RawOutStream.h"
+#include "llvm/Support/raw_ostream.h"
 #include "polarphp/syntax/TokenKinds.h"
 
 namespace polar::parser {
@@ -19,19 +19,19 @@ using namespace polar::syntax;
 
 void Token::dump() const
 {
-   dump(polar::utils::error_stream());
-   polar::utils::error_stream() << "\n";
+   dump(llvm::errs());
+   llvm::errs() << "\n";
 }
 
 /// Dump this piece of syntax recursively.
-void Token::dump(RawOutStream &outStream) const
+void Token::dump(raw_ostream &outStream) const
 {
    outStream << "============================" << "\n";
    outStream << "name: ";
    dump_token_kind(outStream, m_kind);
    outStream << "\n";
    if (is_keyword_token(m_kind) || is_punctuator_token(m_kind)) {
-      outStream << "text: " << getText() << "\n";
+      outStream << "text: " << getLexicalText() << "\n";
    }
    if (!isInvalidLexValue()) {
       if (m_kind == TokenKindType::T_VARIABLE ||

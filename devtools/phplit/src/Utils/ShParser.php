@@ -11,11 +11,11 @@
 // Created by polarboy on 2019/10/12.
 namespace Lit\Utils;
 
-use Lit\Kernel\GlobItemCommand;
-use Lit\Kernel\PipelineCommand;
-use Lit\Kernel\SeqCmmand;
-use Lit\Kernel\ValueException;
-use Lit\Kernel\ShCommand;
+use Lit\Shell\GlobItemCommand;
+use Lit\Shell\PipelineCommand;
+use Lit\Shell\SeqCmmand;
+use Lit\Exception\ValueException;
+use Lit\Shell\ShCommand;
 
 class ShParser
 {
@@ -31,11 +31,12 @@ class ShParser
     * @var \Generator $tokens
     */
    private $tokens;
-   public function __construct($data, $win32Escapes = false, $pipeFail = false)
+   public function __construct(string $data, $win32Escapes = false, $pipeFail = false)
    {
       $this->data = $data;
       $this->pipeFail = $pipeFail;
-      $this->tokens = new ShLexer($data, $pipeFail);
+      $lexer = new ShLexer($data, $pipeFail);
+      $this->tokens = $lexer->lex();
    }
 
    public function parse()
@@ -44,7 +45,7 @@ class ShParser
       while ($this->look()) {
          $operator = $this->lex();
          assert(is_array($operator) && count($operator) == 1);
-         if (is_null($this->look())) {
+         if (null == $this->look()) {
             throw new ValueException('missing argument to operator %s', $operator[0]);
          }
          # FIXME: Operator precedence!!
@@ -55,10 +56,9 @@ class ShParser
 
    private function lex()
    {
-      foreach ($this->tokens as $token) {
-         return $token;
-      }
-      return null;
+      $token = $this->tokens->current();
+      $this->tokens->next();
+      return $token;
    }
 
    private function look()
@@ -69,18 +69,18 @@ class ShParser
    private function parseCommand()
    {
       $token = $this->lex();
-      if (is_null($token)) {
+      if ($token == null) {
          throw new ValueException('empty command!');
       }
-      if (!is_array($token)) {
-         throw new ValueException('syntax error near unexpected token %s', $token[0]);
+      if (is_array($token)) {
+         throw new ValueException(sprintf('syntax error near unexpected token %s', $token[0]));
       }
       $args = [$token];
       $redirects = [];
       while (true) {
          $token = $this->look();
          // EOF?
-         if (is_null($token)) {
+         if ($token === null) {
             break;
          }
          // If this is an argument, just add it to the current command.
@@ -96,7 +96,7 @@ class ShParser
          // Otherwise it must be a redirection.
          $op = $this->lex();
          $arg = $this->lex();
-         if (is_null($arg)) {
+         if (null === $arg) {
             throw new ValueException(sprintf('syntax error near token %s', $op[0]));
          }
          $redirects[] = [$op, $arg];

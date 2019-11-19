@@ -51,12 +51,12 @@ public:
 
    Trivia getLeadingTrivia() const
    {
-      return Trivia { getRaw()->getLeadingTrivia().getVector() };
+      return Trivia { getRaw()->getLeadingTrivia().vec() };
    }
 
    Trivia getTrailingTrivia() const
    {
-      return Trivia { getRaw()->getTrailingTrivia().getVector() };
+      return Trivia { getRaw()->getTrailingTrivia().vec() };
    }
 
    TokenSyntax withLeadingTrivia(const Trivia &trivia) const
@@ -69,11 +69,6 @@ public:
    {
       auto newRaw = getRaw()->withTrailingTrivia(trivia.pieces);
       return m_data->replaceSelf<TokenSyntax>(newRaw);
-   }
-
-   TokenCategory getKindCategory(TokenKindType kind) const
-   {
-      return get_token_category(kind);
    }
 
    bool isKeyword() const

@@ -14,7 +14,9 @@ namespace Lit\Utils;
 use Lit\Kernel\LitConfig;
 use Lit\Kernel\TestCase;
 use Lit\Kernel\TestingConfig;
-use Lit\Kernel\ExecuteCommandTimeoutException;
+use Lit\Exception\ExecuteCommandTimeoutException;
+use Lit\Shell\GlobItemCommand;
+use Lit\Shell\ShCommandInterface;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
@@ -72,6 +74,9 @@ function which(string $command, string $paths = null) : string
    if (is_absolute_path($command) && is_file($command)) {
       return realpath($command);
    }
+   if (empty($paths)) {
+      $paths = ':/bin/:/usr/bin';
+   }
    // Get suffixes to search.
    // On Cygwin, 'PATHEXT' may exist but it should not be used.
    $pathExts = array('');
@@ -83,13 +88,13 @@ function which(string $command, string $paths = null) : string
    $paths = explode(PATH_SEPARATOR, $paths);
    foreach ($paths as $path) {
       foreach ($pathExts as $ext) {
-         $file = $path . PATH_SEPARATOR . $command . $ext;
+         $file = $path . DIRECTORY_SEPARATOR . $command . $ext;
          if (file_exists($file) && !is_dir($file)) {
             return realpath($file);
          }
       }
    }
-   return null;
+   return '';
 }
 
 function check_tools_path(string $dir, array $tools) : bool
@@ -139,6 +144,19 @@ function any_true(array $items, callable $callable)
       }
    }
    return false;
+}
+
+function str_start_with(string $str, string $prefix): bool
+{
+   $prefixLength = strlen($prefix);
+   $strLength = strlen($str);
+   if ($prefixLength == 0 || $strLength == 0) {
+      return false;
+   }
+   if ($prefixLength > $strLength) {
+      return false;
+   }
+   return substr($str, 0, $prefixLength) == $prefix;
 }
 
 function str_end_with(string $str, string $suffix): bool
@@ -207,7 +225,7 @@ function execute_command(array $command, string $cwd = null, array $env = [],
       while ($process->isRunning()) {
          $cpids = retrieve_children_pids($process->getPid(), true);
          $process->checkTimeout();
-         usleep(200000);
+         usleep(10000);
       }
       $process->wait();
    } catch (ProcessTimedOutException $e) {
@@ -391,7 +409,22 @@ function detect_cpus()
 
 function array_to_str(array $arr)
 {
-   return sprintf('[]', join(', ', $arr));
+   $msg = '[';
+   $count = count($arr);
+   for ($i = 0; $i < $count; ++$i) {
+      $item = $arr[$i];
+      if (is_array($item)) {
+         $itemStr = array_to_str($item);
+      } else {
+         $itemStr = strval($item);
+      }
+      if ($i < $count - 1) {
+         $itemStr .= ', ';
+      }
+      $msg .= $itemStr;
+   }
+   $msg .= ']';
+   return $msg;
 }
 
 function array_extend_by_iterable(array &$target, iterable $source): void
@@ -490,6 +523,125 @@ function generate_cycle(array $items)
          yield $item;
       }
    }
+}
+
+function path_split(string $path): array
+{
+   $path = trim($path);
+   if (empty($path)) {
+      return [];
+   }
+   $pos = strrpos($path, DIRECTORY_SEPARATOR);
+   if (false === $pos) {
+      return ['', $path];
+   }
+   if ($pos == 0) {
+      return [DIRECTORY_SEPARATOR, substr($path, 1)];
+   }
+   return [substr($path, 0, $pos), substr($path, $pos + 1)];
+}
+
+function open_temp_file(string $prefix, string $mode)
+{
+   $fs = new Filesystem();
+   $tempFilename = $fs->tempnam(sys_get_temp_dir(), $prefix);
+   return fopen($tempFilename, $mode);
+}
+
+function make_temp_file(string $prefix): string
+{
+   $fs = new Filesystem();
+   $tempFilename = $fs->tempnam(sys_get_temp_dir(), $prefix);
+   $fs->touch($tempFilename);
+   return $tempFilename;
+}
+
+function update_shell_env(ShellEnvironment $env, ShCommandInterface $cmd)
+{
+   $argIndex = 1;
+   $unsetNextEnvVar = false;
+   $cmdArgs = $cmd->getArgs();
+   assert(count($cmdArgs) > 0, "command args count must greater than 0");
+   $cmdArgs = array_slice($cmdArgs, 1);
+   $envPool = $env->getEnv();
+   foreach ($cmdArgs as $argIndex => $arg) {
+      // Support for the -u flag (unsetting) for env command
+      // e.g., env -u FOO -u BAR will remove both FOO and BAR
+      // from the environment.
+      if ($arg == '-u') {
+         $unsetNextEnvVar = true;
+         continue;
+      }
+      if ($unsetNextEnvVar) {
+         $unsetNextEnvVar = false;
+         if (array_key_exists($arg, $envPool)) {
+            $env->unsetEnvVar($arg);
+         }
+         continue;
+      }
+      // Partition the string into KEY=VALUE.
+      if (false === strpos($arg, '=')) {
+         break;
+      }
+      $parts = explode('=', $arg, 2);
+      assert(count($parts) == 2);
+      $env->addEnvVar(trim($parts[0]), trim($parts[1]));
+   }
+   $cmd->setArgs(array_slice($cmdArgs, $argIndex));
+}
+
+function expand_glob($expr, string $cwd): array
+{
+   if ($expr instanceof GlobItemCommand) {
+      $items = $expr->resolve($cwd);
+      sort($items);
+      return $items;
+   }
+   return [$expr];
+}
+
+function expand_glob_expressions(array $exprs, string $cwd): array
+{
+   $result = [$exprs[0]];
+   foreach (array_slice($exprs, 1) as $expr) {
+      $result = array_merge($result, expand_glob($expr, $cwd));
+   }
+   return $result;
+}
+
+function escape_xml_attr($text)
+{
+   return htmlspecialchars($text, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+}
+
+function quote_xml_attr(string $data)
+{
+   $entities = [
+      '\n'=> '&#10;',
+      '\r'=> '&#13;',
+      '\t'=> '&#9;'
+   ];
+   $data = escape_xml_attr(str_replace(array_keys($entities), array_values($entities), $data));
+   if (has_substr($data, '"')) {
+      if (has_substr($data, "'")) {
+         $data = sprintf('"%s"', str_replace("'", '&quot;', $data));
+      } else {
+         $data = sprintf("'%s'", $data);
+      }
+   } else {
+      $data = sprintf('"%s"', $data);
+   }
+   return $data;
+}
+
+function shcmd_split($source, bool $comments = false, bool $posix = true)
+{
+   $lexer = new SysShLexer($source, null, $posix);
+   $lexer->setWhitespaceSplit(true);
+   if (!$comments) {
+      $lexer->setCommenters('');
+   }
+   return $lexer->toArray();
 }
 
 // dummy class

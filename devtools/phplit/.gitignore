@@ -3,4 +3,6 @@
 .phpunit
 .phpunit.result.cache
 /phpunit.xml
+lit
+vendor/
 ###< symfony/phpunit-bridge ###

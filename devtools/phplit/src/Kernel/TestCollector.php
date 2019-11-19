@@ -97,7 +97,7 @@ class TestCollector
       // file into it.
       $config = $parent->getCopyConfig();
       if ($this->litConfig->isDebug()) {
-         TestLogger::note('loading local config %s', $cfgPath);
+         TestLogger::note("loading local config '%s'", $cfgPath);
       }
       $config->loadFromPath($cfgPath, $this->litConfig);
       return $config;
@@ -122,9 +122,7 @@ class TestCollector
    {
       // Canonicalize the path.
       if (!is_absolute_path($path)) {
-         $path = realpath(getcwd() . DIRECTORY_SEPARATOR . $path);
-      } else {
-         $path = realpath($path);
+         $path = getcwd() . DIRECTORY_SEPARATOR . $path;
       }
       // Skip files and virtual components.
       $components = array();
@@ -139,7 +137,7 @@ class TestCollector
       }
       $components = array_reverse($components);
       list($testSuite, $relative) = $this->doCollectionTestSuiteWithCache($path, $cache);
-      return [$testSuite, $relative + $components];
+      return [$testSuite, array_merge($relative, $components)];
    }
 
    private function doCollectionTestSuite(string $path, array &$cache) : array
@@ -147,14 +145,14 @@ class TestCollector
       // Check for a site config or a lit config.
       $cfgPath = $this->findTestSuiteDir($path);
       // If we didn't find a config file, keep looking.
-      if (is_null($cfgPath)) {
+      if (empty($cfgPath)) {
          $parent = dirname($path);
          $base = basename($path);
          if ($parent == $path) {
             return [null, []];
          }
-         list($testSuite, $relative) = $this->doCollectionTestSuiteWithCache($path, $cache);
-         return [$testSuite, $relative + [$base]];
+         list($testSuite, $relative) = $this->doCollectionTestSuiteWithCache($parent, $cache);
+         return [$testSuite, array_merge($relative, [$base])];
       }
       // This is a private builtin parameter which can be used to perform
       // translation of configuration paths.  Specifically, this parameter
@@ -171,7 +169,7 @@ class TestCollector
       }
       // We found a test suite, create a new config for it and load it.
       if ($this->litConfig->isDebug()) {
-         TestLogger::note('loading suite config %s', $cfgPath);
+         TestLogger::note("loading suite config '%s'", $cfgPath);
       }
       $config = TestingConfig::fromDefaults($this->litConfig);
       $config->loadFromPath($cfgPath, $this->litConfig);
@@ -199,7 +197,7 @@ class TestCollector
          return [null, []];
       }
       if ($this->litConfig->isDebug()) {
-         TestLogger::note('resolved input %s to %s::%s', $path, $testSuite->getName(), array_to_str($pathInSuite));
+         TestLogger::note("resolved input '%s' to '%s'::%s", $path, $testSuite->getName(), array_to_str($pathInSuite));
       }
       return [$testSuite, $this->collectTestsInSuite($testSuite, $pathInSuite, $testSuiteCache, $localConfigCache)];
    }
@@ -245,9 +243,9 @@ class TestCollector
          // site configuration and then in the source path.
          $subPath = array_merge($pathInSuite, [$filename]);
          $fileExecPath = $testSuite->getExecPath($subPath);
-         if ($this->findTestSuiteDir($fileExecPath, $this->litConfig)) {
+         if ($this->findTestSuiteDir($fileExecPath)) {
             list($subTestSuite, $subpathInSuite) = $this->collectTestSuite($fileExecPath,$testSuiteCache);
-         } elseif ($this->findTestSuiteDir($fileSourcePath, $this->litConfig)) {
+         } elseif ($this->findTestSuiteDir($fileSourcePath)) {
             list($subTestSuite, $subpathInSuite) = $this->collectTestSuite($fileSourcePath,$testSuiteCache);
          } else {
             $subTestSuite = null;
