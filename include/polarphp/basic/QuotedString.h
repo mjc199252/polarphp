@@ -31,11 +31,11 @@
 #include "llvm/ADT/StringRef.h"
 
 /// forward declare class with namespace
-namespace polar::utils {
+namespace llvm {
 class raw_ostream;
 }
 
-namespace polar::basic {
+namespace polar {
 
 using llvm::StringRef;
 using llvm::raw_ostream;
@@ -62,6 +62,6 @@ private:
    StringRef m_text;
 };
 
-} // polar::basic
+} // polar
 
 #endif // POLARPHP_BASIC_QUOTEDSTRING_H

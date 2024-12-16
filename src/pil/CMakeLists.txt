@@ -11,4 +11,5 @@
 
 add_subdirectory(lang)
 add_subdirectory(optimizer)
-add_subdirectory(pilgen)
+add_subdirectory(gen)
+add_subdirectory(parser)

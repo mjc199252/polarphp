@@ -9,15 +9,14 @@
 //
 // Created by polarboy on 2019/01/15.
 
-#ifndef POLARPHP_BASIC_ADT_OWNED_STRING_H
-#define POLARPHP_BASIC_ADT_OWNED_STRING_H
+#ifndef POLARPHP_BASIC_OWNED_STRING_H
+#define POLARPHP_BASIC_OWNED_STRING_H
 
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/TrailingObjects.h"
 
 namespace polar {
-namespace basic {
 
 using llvm::StringRef;
 using llvm::TrailingObjects;
@@ -141,7 +140,6 @@ public:
    }
 };
 
-} // basic
 } // polar
 
-#endif // POLARPHP_BASIC_ADT_OWNED_STRING_H
+#endif // POLARPHP_BASIC_OWNED_STRING_H

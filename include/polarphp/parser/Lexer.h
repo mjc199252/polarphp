@@ -14,15 +14,15 @@
 
 #include "polarphp/basic/StringExtras.h"
 #include "polarphp/ast/DiagnosticEngine.h"
-#include "polarphp/parser/SourceLoc.h"
-#include "polarphp/parser/SourceMgr.h"
+#include "polarphp/basic/SourceLoc.h"
+#include "polarphp/basic/SourceMgr.h"
 #include "polarphp/parser/Token.h"
 #include "polarphp/parser/ParsedTrivia.h"
 #include "polarphp/parser/LexerState.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "polarphp/parser/internal/YYLexerDefs.h"
 #include "polarphp/parser/LexerFlags.h"
-#include "polarphp/kernel/LangOptions.h"
+#include "polarphp/basic/LangOptions.h"
 
 #include <stack>
 
@@ -35,12 +35,15 @@ bool convert_double_quote_str_escape_sequences(std::string &filteredStr, char qu
                                                const char *endMark, Lexer &lexer);
 }
 
-using polar::ast::Diagnostic;
+using polar::Diagnostic;
 using polar::ast::DiagnosticEngine;
-using polar::ast::InFlightDiagnostic;
-using polar::ast::Diag;
-using polar::kernel::LangOptions;
+using polar::InFlightDiagnostic;
+using polar::Diag;
+using polar::LangOptions;
 union ParserStackElement;
+using polar::SourceManager;
+using polar::SourceLoc;
+using polar::SourceRange;
 
 class Parser;
 
@@ -118,6 +121,8 @@ public:
    {
       return m_commentRetention == CommentRetentionMode::ReturnAsTokens;
    }
+
+   static bool isIdentifier(StringRef name);
 
    const LexerFlags &getFlags() const
    {
@@ -527,7 +532,7 @@ private:
    template <typename... ArgTypes>
    void notifyLexicalException(int code, StringRef format, const ArgTypes&... arg)
    {
-      using polar::basic::sprintable;
+      using polar::sprintable;
       size_t length = std::snprintf(nullptr, 0, format.data(), sprintable(arg)...) + 1;
       std::unique_ptr<char[]> buffer(new char[length]);
       std::snprintf(buffer.get(), length, format.data(), sprintable(arg)...);

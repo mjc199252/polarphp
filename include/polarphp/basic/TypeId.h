@@ -29,13 +29,30 @@
 #ifndef POLARPHP_BASIC_TYPEID_H
 #define POLARPHP_BASIC_TYPEID_H
 
-#include "llvm/ADTStringRef.h"
-#include "llvm/ADTTinyPtrVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/TinyPtrVector.h"
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace polar::basic {
+namespace polar {
+
+enum class Zone : uint8_t {
+   C                       = 0,
+   AST                     = 1,
+   AccessControl           = 11,
+   IDETypes                = 136,
+   IDE                     = 137,
+   IDETypeChecking         = 97,
+   NameLookup              = 9,
+   Parse                   = 8,
+   TypeChecker             = 10,
+   // N.B. This is not a formal zone and exists solely to support the unit tests.
+   ArithmeticEvaluator     = 255,
+};
+
+static_assert(std::is_same<std::underlying_type<Zone>::type, uint8_t>::value,
+              "underlying type is no longer uint8_t!");
 
 /// Form a unique 64-bit integer value describing the type `T`.
 ///
@@ -47,20 +64,18 @@ struct TypeId;
 
 /// Template whose specializations provide the set of type IDs within a
 /// given zone.
-template<uint8_t Zone>
-struct TypeIdZoneTypes;
+template<Zone Zone> struct TypeIdZoneTypes;
 
 /// Form a type ID given a zone and type value.
-constexpr uint64_t form_type_id(uint8_t zone, uint8_t type)
-{
-   return (uint64_t(zone) << 8) | uint64_t(type);
+constexpr uint64_t formTypeID(uint8_t zone, uint8_t type) {
+  return (uint64_t(zone) << 8) | uint64_t(type);
 }
 
 // Define the C type zone (zone 0).
-#define POLAR_TYPEID_ZONE 0
+#define POLAR_TYPEID_ZONE C
 #define POLAR_TYPEID_HEADER "polarphp/basic/CTypeIdZoneDefs.h"
 #include "polarphp/basic/DefineTypeIdZone.h"
 
-} // polar::basic
+} // polar
 
 #endif // POLARPHP_BASIC_TYPEID_H

@@ -9,5 +9,6 @@
 #
 # Created by polarboy on 2019/10/12.
 
-add_subdirectory(polar-ast-dumper)
-add_subdirectory(polar-tokenizer)
+#add_subdirectory(polar-ast-dumper)
+#add_subdirectory(polar-tokenizer)
+add_subdirectory(driver)

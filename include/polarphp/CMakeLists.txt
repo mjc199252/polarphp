@@ -38,23 +38,54 @@ polar_collect_files(
 
 polar_collect_files(
    TYPE_HEADER
+   DIR frontend
+   OUTPUT_VAR POLAR_FRONTEND_HEADERS)
+
+polar_collect_files(
+   TYPE_HEADER
+   DIR frontendtool
+   OUTPUT_VAR POLAR_FRONTEND_TOOL_HEADERS)
+
+polar_collect_files(
+   TYPE_HEADER
    DIR basic
    OUTPUT_VAR POLAR_BASIC_HEADERS)
 
-polar_collect_files(
-   TYPE_HEADER
-   DIR kernel
-   OUTPUT_VAR POLAR_KERNEL_HEADERS)
+if (UNIX)
+   list(APPEND POLAR_BASIC_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/basic/internal/_platform/TaskQueueImplUnix.h)
+else()
+   list(APPEND POLAR_BASIC_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/basic/internal/_platform/TaskQueueImplDefault.h)
+endif()
 
 polar_collect_files(
    TYPE_HEADER
-   DIR parser
-   OUTPUT_VAR POLAR_PARSER_HEADERS)
+   DIR pil
+   OUTPUT_VAR POLAR_PIL_HEADERS)
+
+#polar_collect_files(
+#   TYPE_HEADER
+#   DIR parser
+#   OUTPUT_VAR POLAR_PARSER_HEADERS)
+
+polar_collect_files(
+   TYPE_HEADER
+   DIR llparser
+   OUTPUT_VAR POLAR_LLPARSER_HEADERS)
+
+polar_collect_files(
+   TYPE_HEADER
+   DIR demangling
+   OUTPUT_VAR POLAR_DEMANGLING_HEADERS)
 
 polar_collect_files(
    TYPE_HEADER
    DIR markup
    OUTPUT_VAR POLAR_MARKUP_HEADERS)
+
+polar_collect_files(
+   TYPE_HEADER
+   DIR option
+   OUTPUT_VAR POLAR_OPTION_HEADERS)
 
 polar_collect_files(
    TYPE_HEADER
@@ -96,9 +127,13 @@ polar_merge_list(POLAR_HEADERS POLAR_AST_HEADERS)
 polar_merge_list(POLAR_HEADERS POLAR_BYTECODE_HEADERS)
 polar_merge_list(POLAR_HEADERS POLAR_CODEGEN_HEADERS)
 polar_merge_list(POLAR_HEADERS POLAR_DRIVER_HEADERS)
+polar_merge_list(POLAR_HEADERS POLAR_FRONTEND_HEADERS)
+polar_merge_list(POLAR_HEADERS POLAR_FRONTEND_TOOL_HEADERS)
 polar_merge_list(POLAR_HEADERS POLAR_BASIC_HEADERS)
-polar_merge_list(POLAR_HEADERS POLAR_KERNEL_HEADERS)
-polar_merge_list(POLAR_HEADERS POLAR_PARSER_HEADERS)
+polar_merge_list(POLAR_HEADERS POLAR_PIL_HEADERS)
+polar_merge_list(POLAR_HEADERS POLAR_LLPARSER_HEADERS)
+polar_merge_list(POLAR_HEADERS POLAR_DEMANGLING_HEADERS)
+polar_merge_list(POLAR_HEADERS POLAR_OPTION_HEADERS)
 polar_merge_list(POLAR_HEADERS POLAR_MARKUP_HEADERS)
 polar_merge_list(POLAR_HEADERS POLAR_REFLECTION_HEADERS)
 polar_merge_list(POLAR_HEADERS POLAR_SEMA_HEADERS)
@@ -109,6 +144,7 @@ polar_merge_list(POLAR_HEADERS POLAR_RUNTIME_HEADERS)
 
 add_subdirectory(syntax)
 add_subdirectory(parser)
+add_subdirectory(option)
 
 configure_file(global/PolarVersion.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/global/PolarVersion.h
    @ONLY)

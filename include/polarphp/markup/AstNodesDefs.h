@@ -8,16 +8,6 @@
 // See https://swift.org/LICENSE.txt for license information
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
-// This source file is part of the polarphp.org open source project
-//
-// Copyright (c) 2017 - 2019 polarphp software foundation
-// Copyright (c) 2017 - 2019 zzu_softboy <zzu_softboy@163.com>
-// Licensed under Apache License v2.0 with Runtime Library Exception
-//
-// See https://polarphp.org/LICENSE.txt for license information
-// See https://polarphp.org/CONTRIBUTORS.txt for the list of polarphp project authors
-//
-// Created by polarboy on 2019/04/27.
 //===----------------------------------------------------------------------===//
 //
 // This file defines Swift Markup AST nodes.
@@ -29,34 +19,18 @@
 /// ABSTRACT_REST_AST_NODE(Id, Parent)
 ///
 /// MARKUP_AST_NODE_RANGE(Id, FirstId, LastId)
-///
-#ifndef MARKUP_AST_NODE
-# define MARKUP_AST_NODE(Id, Parent)
-#endif
 
-#ifndef ABSTRACT_REST_AST_NODE
-# define ABSTRACT_REST_AST_NODE(Id, Parent)
-#endif
-
-#ifndef MARKUP_AST_NODE_RANGE
-# define MARKUP_AST_NODE_RANGE(Id, FirstId, LastId)
-#endif
-
-#ifndef ABSTRACT_MARKUP_AST_NODE
-# define ABSTRACT_MARKUP_AST_NODE(Id, FirstId)
-#endif
-
-MARKUP_AST_NODE(Document, MarkupASTNode)
-MARKUP_AST_NODE(BlockQuote, MarkupASTNode)
-MARKUP_AST_NODE(List, MarkupASTNode)
-MARKUP_AST_NODE(Item, MarkupASTNode)
-MARKUP_AST_NODE(CodeBlock, MarkupASTNode)
-MARKUP_AST_NODE(HTML, MarkupASTNode)
-MARKUP_AST_NODE(Paragraph, MarkupASTNode)
-MARKUP_AST_NODE(Header, MarkupASTNode)
-MARKUP_AST_NODE(HRule, MarkupASTNode)
+MARKUP_AST_NODE(Document, MarkupAstNode)
+MARKUP_AST_NODE(BlockQuote, MarkupAstNode)
+MARKUP_AST_NODE(List, MarkupAstNode)
+MARKUP_AST_NODE(Item, MarkupAstNode)
+MARKUP_AST_NODE(CodeBlock, MarkupAstNode)
+MARKUP_AST_NODE(HTML, MarkupAstNode)
+MARKUP_AST_NODE(Paragraph, MarkupAstNode)
+MARKUP_AST_NODE(Header, MarkupAstNode)
+MARKUP_AST_NODE(HRule, MarkupAstNode)
 MARKUP_AST_NODE_RANGE(Block, Document, HRule)
-ABSTRACT_MARKUP_AST_NODE(InlineContent, MarkupASTNode)
+ABSTRACT_MARKUP_AST_NODE(InlineContent, MarkupAstNode)
   MARKUP_AST_NODE(Text, InlineContent)
   MARKUP_AST_NODE(SoftBreak, InlineContent)
   MARKUP_AST_NODE(LineBreak, InlineContent)
@@ -71,7 +45,7 @@ MARKUP_AST_NODE_RANGE(Inline, Text, Image)
 /// Private Markdown Extensions - these should not be implemented in the
 /// underlying cmark parser.
 
-MARKUP_AST_NODE(PrivateExtension, MarkupASTNode)
+MARKUP_AST_NODE(PrivateExtension, MarkupAstNode)
   MARKUP_AST_NODE(ParamField, PrivateExtension)
 
   // Simple fields

@@ -15,7 +15,7 @@
 #include "polarphp/parser/internal/YYLexerDefs.h"
 #include "polarphp/parser/internal/YYLexerExtras.h"
 #include "polarphp/parser/Confusables.h"
-#include "polarphp/basic/CharInfo.h"
+#include "clang/Basic/CharInfo.h"
 #include "polarphp/syntax/Trivia.h"
 #include "polarphp/utils/MathExtras.h"
 #include "polarphp/kernel/LangOptions.h"
@@ -29,11 +29,11 @@
 
 namespace polar::parser {
 
-using polar::basic::SmallString;
+using polar::SmallString;
 
 using namespace internal;
 using namespace polar::syntax;
-using namespace polar::basic;
+using namespace polar;
 
 #define HEREDOC_USING_SPACES 1
 #define HEREDOC_USING_TABS 2
@@ -107,7 +107,7 @@ void Lexer::initialize(unsigned offset, unsigned endOffset)
    // editing with libSyntax.
    m_contentStart = m_bufferStart + BOMLength;
    // Initialize code completion.
-   if (m_bufferId == m_sourceMgr.getCodeCompletionBufferID()) {
+   if (m_bufferId == m_sourceMgr.getCodeCompletionBufferId()) {
       const unsigned char *ptr = m_bufferStart + m_sourceMgr.getCodeCompletionOffset();
       if (ptr >= m_bufferStart && ptr <= m_bufferEnd) {
          m_codeCompletionPtr = ptr;
@@ -130,6 +130,20 @@ void Lexer::lex(Token &result, ParsedTrivia &leadingTriviaResult, ParsedTrivia &
       leadingTriviaResult = {m_leadingTrivia};
       trailingTrivialResult = {m_trailingTrivia};
    }
+}
+
+bool Lexer::isIdentifier(StringRef string)
+{
+  if (string.empty()) {
+     return false;
+  }
+  const unsigned char *p = reinterpret_cast<const unsigned char *>(string.data());
+  const unsigned char *end = reinterpret_cast<const unsigned char *>(string.end());
+  if (!advance_if_valid_start_of_identifier(p, end)) {
+     return false;
+  }
+  while (p < end && advance_if_valid_continuation_of_identifier(p, end));
+  return p == end;
 }
 
 InFlightDiagnostic Lexer::diagnose(const unsigned char *loc, ast::Diagnostic diag)

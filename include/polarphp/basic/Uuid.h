@@ -14,7 +14,6 @@
 // sane m_value semantics and operators.
 //
 //===----------------------------------------------------------------------===//
-
 // This source file is part of the polarphp.org open source project
 //
 // Copyright (c) 2017 - 2019 polarphp software foundation
@@ -31,13 +30,14 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <optional>
 #include <array>
 
-namespace polar::basic {
+namespace polar {
 
 using llvm::raw_ostream;
 using llvm::DenseMap;
@@ -45,79 +45,73 @@ using llvm::DenseMapInfo;
 using llvm::SmallString;
 using llvm::StringRef;
 using llvm::SmallVectorImpl;
+using llvm::Optional;
+using llvm::None;
 
-class UUID
-{
+class UUID {
 public:
-   enum {
-      /// The number of bytes in a UUID's binary representation.
-      Size = 16,
+  enum {
+    /// The number of bytes in a UUID's binary representation.
+    Size = 16,
 
-      /// The number of characters in a UUID's string representation.
-      StringSize = 36,
+    /// The number of characters in a UUID's string representation.
+    StringSize = 36,
 
-      /// The number of bytes necessary to store a null-terminated UUID's string
-      /// representation.
-      StringBufferSize = StringSize + 1,
-   };
+    /// The number of bytes necessary to store a null-terminated UUID's string
+    /// representation.
+    StringBufferSize = StringSize + 1,
+  };
 
-   unsigned char m_value[Size];
+  unsigned char Value[Size];
 
 private:
-   enum FromRandom_t { FromRandom };
-   enum FromTime_t { FromTime };
+  enum FromRandom_t { FromRandom };
+  enum FromTime_t { FromTime };
 
-   UUID(FromRandom_t);
+  UUID(FromRandom_t);
 
-   UUID(FromTime_t);
+  UUID(FromTime_t);
 
 public:
-   /// Default constructor.
-   UUID();
+  /// Default constructor.
+  UUID();
 
-   UUID(std::array<unsigned char, Size> bytes)
-   {
-      memcpy(m_value, &bytes, Size);
-   }
+  UUID(std::array<unsigned char, Size> bytes) {
+    memcpy(Value, &bytes, Size);
+  }
 
-   /// Create a new random UUID from entropy (/dev/random).
-   static UUID fromRandom()
-   {
-      return UUID(FromRandom);
-   }
+  /// Create a new random UUID from entropy (/dev/random).
+  static UUID fromRandom() { return UUID(FromRandom); }
 
-   /// Create a new pseudorandom UUID using the time, MAC address, and pid.
-   static UUID fromTime()
-   {
-      return UUID(FromTime);
-   }
+  /// Create a new pseudorandom UUID using the time, MAC address, and pid.
+  static UUID fromTime() { return UUID(FromTime); }
 
-   /// Parse a UUID from a C string.
-   static std::optional<UUID> fromString(const char *s);
+  /// Parse a UUID from a C string.
+  static Optional<UUID> fromString(const char *s);
 
-   /// Convert a UUID to its string representation.
-   void toString(SmallVectorImpl<char> &out) const;
+  /// Convert a UUID to its string representation.
+  void toString(llvm::SmallVectorImpl<char> &out) const;
 
-   int compare(UUID y) const;
+  int compare(UUID y) const;
 
 #define COMPARE_UUID(op) \
-   bool operator op(UUID y) { return compare(y) op 0; }
+  bool operator op(UUID y) { return compare(y) op 0; }
 
-   COMPARE_UUID(==)
-   COMPARE_UUID(!=)
-   COMPARE_UUID(<)
-   COMPARE_UUID(<=)
-   COMPARE_UUID(>)
-   COMPARE_UUID(>=)
+  COMPARE_UUID(==)
+  COMPARE_UUID(!=)
+  COMPARE_UUID(<)
+  COMPARE_UUID(<=)
+  COMPARE_UUID(>)
+  COMPARE_UUID(>=)
 #undef COMPARE_UUID
 };
 
-raw_ostream &operator<<(raw_ostream &outStream, UUID uuid);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, UUID uuid);
 
 } // polar
 
 namespace llvm {
-using polar::basic::UUID;
+using polar::UUID;
 template<>
 struct DenseMapInfo<UUID>
 {
@@ -132,7 +126,7 @@ struct DenseMapInfo<UUID>
                0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFE}}};
    }
 
-   static unsigned getHashm_value(UUID uuid)
+   static unsigned getHashValue(UUID uuid)
    {
       union {
          UUID uu;
@@ -147,6 +141,6 @@ struct DenseMapInfo<UUID>
       return a == b;
    }
 };
-}
+} // polar
 
 #endif // POLARPHP_BASIC_UUID_H

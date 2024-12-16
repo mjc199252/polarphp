@@ -9,17 +9,6 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
-// This source file is part of the polarphp.org open source project
-//
-// Copyright (c) 2017 - 2019 polarphp software foundation
-// Copyright (c) 2017 - 2019 zzu_softboy <zzu_softboy@163.com>
-// Licensed under Apache License v2.0 with Runtime Library Exception
-//
-// See https://polarphp.org/LICENSE.txt for license information
-// See https://polarphp.org/CONTRIBUTORS.txt for the list of polarphp project authors
-//
-// Created by polarboy on 2019/04/25.
-//===----------------------------------------------------------------------===//
 //
 //  This file defines driver-only diagnostics emitted in processing
 //  command-line arguments and setting up compilation.
@@ -31,10 +20,6 @@
 
 #if !(defined(DIAG) || (defined(ERROR) && defined(WARNING) && defined(NOTE)))
 #  error Must define either DIAG or the set {ERROR,WARNING,NOTE}
-#endif
-
-#ifndef DIAG
-# define DIAG(ERROR,ID,Options,Text,Signature)
 #endif
 
 #ifndef ERROR
@@ -61,46 +46,49 @@ WARNING(warning_parallel_execution_not_supported,none,
         "parallel execution not supported; falling back to serial execution",
         ())
 
-ERROR(error_unable_to_execute_command, none,
+ERROR(error_unable_to_execute_command,none,
       "unable to execute command: %0", (StringRef))
-ERROR(error_command_signalled_without_signal_number, none,
+ERROR(error_command_signalled_without_signal_number,none,
       "%0 command failed due to signal (use -v to see invocation)", (StringRef))
-ERROR(error_command_signalled, none,
+ERROR(error_command_signalled,none,
       "%0 command failed due to signal %1 (use -v to see invocation)", (StringRef, int))
-ERROR(error_command_failed, none,
+ERROR(error_command_failed,none,
       "%0 command failed with exit code %1 (use -v to see invocation)",
       (StringRef, int))
 
-ERROR(error_expected_one_frontend_job, none,
+ERROR(error_expected_one_frontend_job,none,
       "unable to handle compilation, expected exactly one frontend job", ())
-ERROR(error_expected_frontend_command, none,
+ERROR(error_expected_frontend_command,none,
       "expected a swift frontend command", ())
 
-ERROR(error_cannot_specify__o_for_multiple_outputs, none,
+ERROR(error_cannot_specify__o_for_multiple_outputs,none,
       "cannot specify -o when generating multiple output files", ())
+
+ERROR(error_static_emit_executable_disallowed,none,
+      "-static may not be used with -emit-executable", ())
 
 ERROR(error_unable_to_load_output_file_map, none,
       "unable to load output file map '%1': %0", (StringRef, StringRef))
 
-ERROR(error_no_output_file_map_specified, none,
+ERROR(error_no_output_file_map_specified,none,
       "no output file map specified", ())
 
-ERROR(error_unable_to_make_temporary_file, none,
+ERROR(error_unable_to_make_temporary_file,none,
       "unable to make temporary file: %0", (StringRef))
 
-ERROR(error_no_input_files, none,
+ERROR(error_no_input_files,none,
       "no input files", ())
 
-ERROR(error_unexpected_input_file, none,
+ERROR(error_unexpected_input_file,none,
       "unexpected input file: %0", (StringRef))
 
-ERROR(error_unknown_target, none,
+ERROR(error_unknown_target,none,
       "unknown target '%0'", (StringRef))
 
-ERROR(error_framework_bridging_header, none,
+ERROR(error_framework_bridging_header,none,
       "using bridging headers with framework targets is unsupported", ())
-ERROR(error_bridging_header_parseable_interface, none,
-      "using bridging headers with parseable module interfaces is unsupported",
+ERROR(error_bridging_header_module_interface,none,
+      "using bridging headers with module interfaces is unsupported",
       ())
 
 ERROR(error_i_mode,none,
@@ -109,27 +97,34 @@ ERROR(error_i_mode,none,
 WARNING(warning_unnecessary_repl_mode,none,
         "unnecessary option '%0'; this is the default for '%1' "
         "with no input files", (StringRef, StringRef))
-ERROR(error_unsupported_option, none,
+ERROR(error_unsupported_option,none,
       "option '%0' is not supported by '%1'; did you mean to use '%2'?",
       (StringRef, StringRef, StringRef))
 
 WARNING(incremental_requires_output_file_map,none,
         "ignoring -incremental (currently requires an output file map)", ())
-WARNING(incremental_requires_build_record_entry, none,
+WARNING(incremental_requires_build_record_entry,none,
         "ignoring -incremental; output file map has no master dependencies "
         "entry (\"%0\" under \"\")", (StringRef))
 
-ERROR(error_os_minimum_deployment, none,
+WARNING(unable_to_open_incremental_comparison_log,none,
+"unable to open incremental comparison log file '%0'", (StringRef))
+
+ERROR(error_os_minimum_deployment,none,
       "Swift requires a minimum deployment target of %0", (StringRef))
 ERROR(error_sdk_too_old,none,
       "Swift does not support the SDK '%0'", (StringRef))
-ERROR(error_ios_maximum_deployment_32, none,
+ERROR(error_ios_maximum_deployment_32,none,
       "iOS %0 does not support 32-bit programs", (unsigned))
 
-ERROR(error_two_files_same_name, none,
+WARNING(warn_arclite_not_found_when_link_objc_runtime,none,
+        "unable to find Objective-C runtime support library 'arclite'; "
+        "pass '-no-link-objc-runtime' to silence this warning", ())
+
+ERROR(error_two_files_same_name,none,
       "filename \"%0\" used twice: '%1' and '%2'",
       (StringRef, StringRef, StringRef))
-NOTE(note_explain_two_files_same_name, none,
+NOTE(note_explain_two_files_same_name,none,
      "filenames are used to distinguish private declarations with the same "
      "name", ())
 
@@ -157,7 +152,7 @@ WARNING(warn_ignore_embed_bitcode, none,
 WARNING(warn_ignore_embed_bitcode_marker, none,
         "ignoring -embed-bitcode-marker since no object file is being generated", ())
 
-WARNING(verify_debug_info_requires_debug_option, none,
+WARNING(verify_debug_info_requires_debug_option,none,
         "ignoring '-verify-debug-info'; no debug info is being generated", ())
 
 ERROR(error_profile_missing,none,
@@ -168,15 +163,39 @@ WARNING(warn_opt_remark_disabled, none,
         "requires a single compiler invocation: consider enabling the "
         "-whole-module-optimization flag", ())
 
-WARNING(warn_ignoring_batch_mode, none,
+WARNING(warn_ignoring_batch_mode,none,
 "ignoring '-enable-batch-mode' because '%0' was also specified", (StringRef))
+
+WARNING(warn_ignoring_source_range_dependencies,none,
+"ignoring '-enable-source-range-dependencies' because '%0' was also specified", (StringRef))
+
+WARNING(warn_bad_swift_ranges_header,none,
+"ignoring '-enable-source-range-dependencies' because of bad header in '%0'", (StringRef))
+
+WARNING(warn_bad_swift_ranges_format,none,
+"ignoring '-enable-source-range-dependencies' because of bad format '%1' in '%0'", (StringRef, StringRef))
 
 WARNING(warn_use_filelists_deprecated, none,
         "the option '-driver-use-filelists' is deprecated; use "
         "'-driver-filelist-threshold=0' instead", ())
 
+WARNING(warn_unable_to_load_swift_ranges, none,
+"unable to load swift ranges file \"%0\", %1",
+(StringRef, StringRef))
+
+WARNING(warn_unable_to_load_compiled_swift, none,
+"unable to load previously compiled swift file \"%0\", %1",
+(StringRef, StringRef))
+
+WARNING(warn_unable_to_load_primary, none,
+"unable to load primary swift file \"%0\", %1",
+(StringRef, StringRef))
+
 ERROR(cannot_find_migration_script, none,
       "missing migration script from path '%0'", (StringRef))
+
+ERROR(error_darwin_static_stdlib_not_supported, none,
+      "-static-stdlib is no longer supported on Apple platforms", ())
 
 #ifndef DIAG_NO_UNDEF
 # if defined(DIAG)

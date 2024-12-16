@@ -36,9 +36,9 @@ bool is_trivial_syntax_kind(SyntaxKind kind)
 void print_syntax_kind(SyntaxKind kind, raw_ostream &outStream,
                        SyntaxPrintOptions opts, bool open)
 {
-   std::unique_ptr<polar::basic::OsColor> color;
+   std::unique_ptr<polar::OsColor> color;
    if (opts.visual) {
-      color.reset(new polar::basic::OsColor(outStream, raw_ostream::Colors::GREEN));
+      color.reset(new polar::OsColor(outStream, raw_ostream::Colors::GREEN));
    }
    outStream << "<";
    if (!open) {
@@ -116,16 +116,16 @@ RawSyntax::RawSyntax(TokenKindType tokenKind, OwnedString text,
 RawSyntax::RawSyntax(TokenKindType tokenKind, OwnedString text, std::int64_t value, ArrayRef<TriviaPiece> leadingTrivia,
           ArrayRef<TriviaPiece> trailingTrivia, SourcePresence presence,
           const RefCountPtr<SyntaxArena> &arena, std::optional<SyntaxNodeId> nodeId)
+   : RawSyntax(tokenKind, text, leadingTrivia, trailingTrivia, presence, arena, nodeId)
 {
-   RawSyntax(tokenKind, text, leadingTrivia, trailingTrivia, presence, arena, nodeId);
    *getTrailingObjects<std::int64_t>() = value;
 }
 
 RawSyntax::RawSyntax(TokenKindType tokenKind, OwnedString text, double value, ArrayRef<TriviaPiece> leadingTrivia,
           ArrayRef<TriviaPiece> trailingTrivia, SourcePresence presence,
           const RefCountPtr<SyntaxArena> &arena, std::optional<SyntaxNodeId> nodeId)
+   : RawSyntax(tokenKind, text, leadingTrivia, trailingTrivia, presence, arena, nodeId)
 {
-   RawSyntax(tokenKind, text, leadingTrivia, trailingTrivia, presence, arena, nodeId);
    *getTrailingObjects<double>() = value;
 }
 

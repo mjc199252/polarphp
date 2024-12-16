@@ -10,19 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This source file is part of the polarphp.org open source project
-//
-// Copyright (c) 2017 - 2019 polarphp software foundation
-// Copyright (c) 2017 - 2019 zzu_softboy <zzu_softboy@163.com>
-// Licensed under Apache License v2.0 with Runtime Library Exception
-//
-// See https://polarphp.org/LICENSE.txt for license information
-// See https://polarphp.org/CONTRIBUTORS.txt for the list of polarphp project authors
-//
-// Created by polarboy on 2019/04/25.
-//
-//===----------------------------------------------------------------------===//
-//
 //  This file defines diagnostics emitted in processing command-line arguments
 //  and setting up compilation.
 //  Each diagnostic is described using one of three kinds (error, warning, or
@@ -31,27 +18,29 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if !(defined(DIAG) || (defined(ERROR) && defined(WARNING) && defined(NOTE)))
-#  error Must define either DIAG or the set {ERROR,WARNING,NOTE}
-#endif
-
-#ifndef DIAG
-#define DIAG(ERROR,ID,Options,Text,Signature)
+#if !(defined(DIAG) || (defined(ERROR) && defined(WARNING) && defined(NOTE) && \
+                        defined(REMARK)))
+#  error Must define either DIAG or the set {ERROR,WARNING,NOTE,REMARK}
 #endif
 
 #ifndef ERROR
 #  define ERROR(ID,Options,Text,Signature)   \
-   DIAG(ERROR,ID,Options,Text,Signature)
+  DIAG(ERROR,ID,Options,Text,Signature)
 #endif
 
 #ifndef WARNING
 #  define WARNING(ID,Options,Text,Signature) \
-   DIAG(WARNING,ID,Options,Text,Signature)
+  DIAG(WARNING,ID,Options,Text,Signature)
 #endif
 
 #ifndef NOTE
 #  define NOTE(ID,Options,Text,Signature) \
-   DIAG(NOTE,ID,Options,Text,Signature)
+  DIAG(NOTE,ID,Options,Text,Signature)
+#endif
+
+#ifndef REMARK
+#  define REMARK(ID,Options,Text,Signature)   \
+DIAG(REMARK,ID,Options,Text,Signature)
 #endif
 
 WARNING(warning_no_such_sdk,none,
@@ -82,6 +71,10 @@ ERROR(error_option_requires_sanitizer, none,
       "option '%0' requires a sanitizer to be enabled. Use -sanitize= to "
       "enable a sanitizer", (StringRef))
 
+WARNING(warning_option_requires_specific_sanitizer, none,
+      "option '%0' has no effect when '%1' sanitizer is disabled. Use -sanitize=%1 to "
+      "enable the sanitizer", (StringRef, StringRef))
+
 ERROR(error_option_missing_required_argument, none,
       "option '%0' is missing a required argument (%1)", (StringRef, StringRef))
 
@@ -102,7 +95,7 @@ ERROR(error_unknown_arg,none,
 ERROR(error_invalid_arg_value,none,
       "invalid value '%1' in '%0'", (StringRef, StringRef))
 WARNING(warning_cannot_multithread_batch_mode,none,
-        "ignoring -num-threads argument; cannot multithread batch mode", ())
+      "ignoring -num-threads argument; cannot multithread batch mode", ())
 ERROR(error_unsupported_option_argument,none,
       "unsupported argument '%1' to option '%0'", (StringRef, StringRef))
 ERROR(error_immediate_mode_missing_stdlib,none,
@@ -120,13 +113,17 @@ ERROR(error_no_source_location_scope_map,none,
       "-dump-scope-maps argument must be 'expanded' or a list of "
       "source locations", ())
 
-NOTE(note_valid_swift_versions, none,
-     "valid arguments to '-swift-version' are %0", (StringRef))
+NOTE(note_valid_php_versions, none,
+     "valid arguments to '-php-version' are %0", (StringRef))
 
 ERROR(error_mode_cannot_emit_dependencies,none,
       "this mode does not support emitting dependency files", ())
 ERROR(error_mode_cannot_emit_reference_dependencies,none,
       "this mode does not support emitting reference dependency files", ())
+ERROR(error_mode_cannot_emit_php_ranges,none,
+"this mode does not support emitting unparsed ranges files", ())
+ERROR(error_mode_cannot_emit_compiled_source,none,
+"this mode does not support emitting compiled source files", ())
 ERROR(error_mode_cannot_emit_header,none,
       "this mode does not support emitting Objective-C headers", ())
 ERROR(error_mode_cannot_emit_loaded_module_trace,none,
@@ -135,11 +132,20 @@ ERROR(error_mode_cannot_emit_module,none,
       "this mode does not support emitting modules", ())
 ERROR(error_mode_cannot_emit_module_doc,none,
       "this mode does not support emitting module documentation files", ())
+ERROR(error_mode_cannot_emit_module_source_info,none,
+      "this mode does not support emitting module source info files", ())
 ERROR(error_mode_cannot_emit_interface,none,
-      "this mode does not support emitting parseable interface files", ())
+      "this mode does not support emitting module interface files", ())
+ERROR(cannot_emit_ir_skipping_function_bodies,none,
+      "-experimental-skip-non-inlinable-function-bodies does not support "
+      "emitting IR", ())
 
 WARNING(emit_reference_dependencies_without_primary_file,none,
-        "ignoring -emit-reference-dependencies (requires -primary-file)", ())
+  "ignoring -emit-reference-dependencies (requires -primary-file)", ())
+WARNING(emit_php_ranges_without_primary_file,none,
+"ignoring -emit-php-ranges (requires -primary-file)", ())
+WARNING(emit_compiled_source_without_primary_file,none,
+"ignoring -emit-compiled-source (requires -primary-file)", ())
 
 ERROR(error_bad_module_name,none,
       "module name \"%0\" is not a valid identifier"
@@ -152,6 +158,8 @@ ERROR(error_stdlib_module_name,none,
 
 ERROR(error_stdlib_not_found,Fatal,
       "unable to load standard library for target '%0'", (StringRef))
+ERROR(error_underlying_module_not_found,none,
+      "underlying Objective-C module %0 not found", (Identifier))
 
 ERROR(error_unable_to_load_supplementary_output_file_map, none,
       "unable to load supplementary output file map '%0': %1",
@@ -236,6 +244,15 @@ ERROR(error_formatting_invalid_range,none,
 WARNING(stats_disabled,none,
         "compiler was not built with support for collecting statistics", ())
 
+WARNING(tbd_warn_truncating_version,none,
+        "truncating %select{current|compatibility}0 version '%1' in TBD file "
+        "to fit in 32-bit space used by old mach-o format",
+        (unsigned, StringRef))
+
+ERROR(tbd_err_invalid_version,none,
+      "invalid dynamic library %select{current|compatibility}0 version '%1'",
+      (unsigned, StringRef))
+
 WARNING(tbd_only_supported_in_whole_module,none,
         "TBD generation is only supported when the whole module can be seen",
         ())
@@ -248,7 +265,7 @@ ERROR(symbol_in_ir_not_in_tbd,none,
       (StringRef, StringRef))
 
 ERROR(tbd_validation_failure,none,
-      "please file a radar or open a bug on bugs.swift.org with this code, and "
+      "please file a radar or open a bug on bugs.php.org with this code, and "
       "add -Xfrontend -validate-tbd-against-ir=none to squash the errors", ())
 
 ERROR(redundant_prefix_compilation_flag,none,
@@ -263,6 +280,10 @@ WARNING(cannot_assign_value_to_conditional_compilation_flag,none,
         "conditional compilation flags do not have values in Swift; they are "
         "either present or absent (rather than '%0')", (StringRef))
 
+WARNING(framework_search_path_includes_framework_extension,none,
+        "framework search path ends in \".framework\"; add directory containing "
+        "framework instead: %0", (StringRef))
+
 ERROR(error_optimization_remark_pattern, none, "%0 in '%1'",
       (StringRef, StringRef))
 
@@ -270,25 +291,51 @@ ERROR(error_invalid_debug_prefix_map, none,
       "invalid argument '%0' to -debug-prefix-map; it must be of the form "
       "'original=remapped'", (StringRef))
 
+
+ERROR(error_unable_to_write_php_ranges_file, none,
+"unable to write unparsed ranges file '$0': %1", (StringRef, StringRef))
+
+ERROR(error_unable_to_write_compiled_source_file, none,
+"unable to write compiled source file: '$0': %1", (StringRef, StringRef))
+
+
 ERROR(invalid_vfs_overlay_file,none,
       "invalid virtual overlay file '%0'", (StringRef))
 
-WARNING(parseable_interface_scoped_import_unsupported,none,
-        "scoped imports are not yet supported in parseable module interfaces",
+WARNING(module_interface_scoped_import_unsupported,none,
+        "scoped imports are not yet supported in module interfaces",
         ())
-ERROR(error_extracting_version_from_parseable_interface,none,
-      "error extracting version from parseable module interface", ())
-ERROR(unsupported_version_of_parseable_interface,none,
-      "unsupported version of parseable module interface '%0': '%1'",
+WARNING(warn_unsupported_module_interface_php_version,none,
+        "module interfaces are only supported with Swift language version 5 "
+        "or later (currently using -php-version %0)",
+        (StringRef))
+WARNING(warn_unsupported_module_interface_library_evolution,none,
+        "module interfaces are only supported with -enable-library-evolution",
+        ())
+ERROR(error_extracting_version_from_module_interface,none,
+      "error extracting version from module interface", ())
+ERROR(unsupported_version_of_module_interface,none,
+      "unsupported version of module interface '%0': '%1'",
       (StringRef, llvm::VersionTuple))
-ERROR(error_extracting_flags_from_parseable_interface,none,
-      "error extracting flags from parseable module interface", ())
-ERROR(missing_dependency_of_parseable_module_interface,none,
-      "missing dependency '%0' of parseable module interface '%1': %2",
-      (StringRef, StringRef, StringRef))
-ERROR(error_extracting_dependencies_from_cached_module,none,
-      "error extracting dependencies from cached module '%0'",
-      (StringRef))
+ERROR(error_extracting_flags_from_module_interface,none,
+      "error extracting flags from module interface", ())
+REMARK(rebuilding_module_from_interface,none,
+       "rebuilding module '%0' from interface '%1'", (StringRef, StringRef))
+NOTE(out_of_date_module_here,none,
+     "%select{compiled|cached|forwarding|prebuilt}0 module is out of date: '%1'",
+     (unsigned, StringRef))
+NOTE(module_interface_dependency_out_of_date,none,
+     "dependency is out of date: '%0'",
+     (StringRef))
+NOTE(module_interface_dependency_missing,none,
+     "dependency is missing: '%0'",
+     (StringRef))
+NOTE(compiled_module_invalid,none,
+     "unable to load compiled module '%0'",
+     (StringRef))
+NOTE(compiled_module_invalid_reason,none,
+     "unable to load compiled module '%0': %1",
+     (StringRef, StringRef))
 ERROR(unknown_forced_module_loading_mode,none,
       "unknown value for SWIFT_FORCE_MODULE_LOADING variable: '%0'",
       (StringRef))
@@ -297,6 +344,7 @@ ERROR(unknown_forced_module_loading_mode,none,
 # if defined(DIAG)
 #  undef DIAG
 # endif
+# undef REMARK
 # undef NOTE
 # undef WARNING
 # undef ERROR
